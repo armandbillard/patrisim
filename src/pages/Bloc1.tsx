@@ -12,24 +12,37 @@ interface EnfantCharge {
   prenom: string
   age: string
   gardeAlternee: boolean
+  handicape: boolean
+  autreUnion: boolean
+  autreUnionParent: 'P1' | 'P2' | ''
 }
 
 interface EnfantMajeur {
   prenom: string
   age: string
-  aCharge: boolean
+  etudes: boolean
+  handicape: boolean
+  autreUnion: boolean
+  autreUnionParent: 'P1' | 'P2' | ''
+}
+
+interface AutreCharge {
+  lien: string
+  autreDesc: string
+  prenom: string
+  coutMensuel: string
 }
 
 interface Foyer {
   statutMatrimonial: string
+  unionPrecedente: boolean
+  nbUnionsPrecedentes: string
   regimeMatrimonial: string
   enfantsCharge: number
   enfants: EnfantCharge[]
   enfantsMajeurs: number
   majeurs: EnfantMajeur[]
-  autresPersonnes: boolean
-  autresPersonnesDesc: string
-  autresPersonnesCout: string
+  autresCharges: AutreCharge[]
 }
 
 const defaultPersonne: Personne = {
@@ -42,14 +55,14 @@ const defaultPersonne: Personne = {
 
 const defaultFoyer: Foyer = {
   statutMatrimonial: '',
+  unionPrecedente: false,
+  nbUnionsPrecedentes: '',
   regimeMatrimonial: '',
   enfantsCharge: 0,
   enfants: [],
   enfantsMajeurs: 0,
   majeurs: [],
-  autresPersonnes: false,
-  autresPersonnesDesc: '',
-  autresPersonnesCout: '',
+  autresCharges: [],
 }
 
 function calculateAge(dateNaissance: string): number | null {
@@ -155,20 +168,76 @@ function ChipSelector({ options, value, onChange }: {
   )
 }
 
-function PersonneCard({ personne, onChange, badge }: {
+function Checkbox({ checked, onChange, label }: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: string
+}) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer">
+      <div
+        onClick={() => onChange(!checked)}
+        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${
+          checked ? 'bg-[#185FA5] border-[#185FA5]' : 'border-gray-300 bg-white'
+        }`}
+      >
+        {checked && (
+          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </div>
+      <span className="text-[13px] text-gray-600">{label}</span>
+    </label>
+  )
+}
+
+function ToggleButton({ value, onChange }: {
+  value: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <div className="flex gap-3">
+      {['Non', 'Oui'].map(opt => (
+        <button
+          key={opt}
+          onClick={() => onChange(opt === 'Oui')}
+          className={`px-5 py-2 rounded-lg text-[13px] border transition-all ${
+            (opt === 'Oui') === value
+              ? 'bg-[#185FA5] border-[#185FA5] text-white'
+              : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          {opt}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+const regimesMatrimoniaux: Record<string, string> = {
+  'Communauté légale réduite aux acquêts': 'Les biens acquis pendant le mariage appartiennent aux deux époux à parts égales.',
+  'Séparation de biens': "Chaque époux reste propriétaire exclusif des biens qu'il acquiert.",
+  'Communauté universelle': 'Tous les biens présents et futurs sont communs aux deux époux.',
+  'Participation aux acquêts': 'Régime mixte : séparation pendant le mariage, partage des gains à la dissolution.',
+  'PACS — régime légal': 'Par défaut, chaque partenaire conserve ses biens propres.',
+  'PACS — indivision': 'Les biens acquis ensemble appartiennent aux deux partenaires.',
+}
+
+function PersonneCard({ personne, onChange, label, dot, text }: {
   personne: Personne
   onChange: (p: Personne) => void
-  badge: { label: string; text: string; dot: string }
+  label: string
+  dot: string
+  text: string
 }) {
   const age = calculateAge(personne.dateNaissance)
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
       <div className="flex items-center gap-2 mb-5">
-        <div className={`w-2 h-2 rounded-full ${badge.dot}`} />
-        <span className={`text-[12px] font-semibold tracking-wide ${badge.text}`}>
-          {badge.label}
-        </span>
+        <div className={`w-2 h-2 rounded-full ${dot}`} />
+        <span className={`text-[12px] font-semibold tracking-wide ${text}`}>{label}</span>
       </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
         <Field label="Prénom">
@@ -205,15 +274,6 @@ function PersonneCard({ personne, onChange, badge }: {
   )
 }
 
-const regimesMatrimoniaux: Record<string, string> = {
-  'Communauté légale réduite aux acquêts': 'Les biens acquis pendant le mariage appartiennent aux deux époux à parts égales.',
-  'Séparation de biens': "Chaque époux reste propriétaire exclusif des biens qu'il acquiert.",
-  'Communauté universelle': 'Tous les biens présents et futurs sont communs aux deux époux.',
-  'Participation aux acquêts': 'Régime mixte : séparation pendant le mariage, partage des gains à la dissolution.',
-  'PACS — régime légal': 'Par défaut, chaque partenaire conserve ses biens propres.',
-  'PACS — indivision': 'Les biens acquis ensemble appartiennent aux deux partenaires.',
-}
-
 export default function Bloc1() {
   const [mode, setMode] = useState<'seul' | 'couple'>('seul')
   const [p1, setP1] = useState<Personne>(defaultPersonne)
@@ -224,18 +284,16 @@ export default function Bloc1() {
 
   const handleEnfantsCharge = (n: number) => {
     const enfants = Array(n).fill(null).map((_, i) => foyer.enfants[i] || {
-      prenom: '',
-      age: '',
-      gardeAlternee: false,
+      prenom: '', age: '', gardeAlternee: false,
+      handicape: false, autreUnion: false, autreUnionParent: '' as ''
     })
     setFoyer({ ...foyer, enfantsCharge: n, enfants })
   }
 
   const handleEnfantsMajeurs = (n: number) => {
     const majeurs = Array(n).fill(null).map((_, i) => foyer.majeurs[i] || {
-      prenom: '',
-      age: '',
-      aCharge: false,
+      prenom: '', age: '', etudes: false,
+      handicape: false, autreUnion: false, autreUnionParent: '' as ''
     })
     setFoyer({ ...foyer, enfantsMajeurs: n, majeurs })
   }
@@ -251,6 +309,31 @@ export default function Bloc1() {
     newMajeurs[i] = { ...newMajeurs[i], [field]: value }
     setFoyer({ ...foyer, majeurs: newMajeurs })
   }
+
+  const addAutreCharge = () => {
+    setFoyer({
+      ...foyer,
+      autresCharges: [...foyer.autresCharges, {
+        lien: '', autreDesc: '', prenom: '', coutMensuel: ''
+      }]
+    })
+  }
+
+  const updateAutreCharge = (i: number, field: keyof AutreCharge, value: string) => {
+    const newCharges = [...foyer.autresCharges]
+    newCharges[i] = { ...newCharges[i], [field]: value }
+    setFoyer({ ...foyer, autresCharges: newCharges })
+  }
+
+  const removeAutreCharge = (i: number) => {
+    setFoyer({ ...foyer, autresCharges: foyer.autresCharges.filter((_, idx) => idx !== i) })
+  }
+
+  const getEnfantLabel = (enfant: { prenom: string }, i: number) =>
+    enfant.prenom.trim() || `Enfant ${i + 1}`
+
+  const p1Label = p1.prenom.trim() || 'Personne 1'
+  const p2Label = p2.prenom.trim() || 'Personne 2'
 
   return (
     <div className="min-h-screen bg-[#F8F8F6]">
@@ -307,21 +390,18 @@ export default function Bloc1() {
           <SectionTitle>Identité</SectionTitle>
           {mode === 'seul' ? (
             <PersonneCard
-              personne={p1}
-              onChange={setP1}
-              badge={{ label: 'Personne 1', text: 'text-[#185FA5]', dot: 'bg-[#185FA5]' }}
+              personne={p1} onChange={setP1}
+              label={p1Label} dot="bg-[#185FA5]" text="text-[#185FA5]"
             />
           ) : (
             <div className="grid grid-cols-2 gap-4">
               <PersonneCard
-                personne={p1}
-                onChange={setP1}
-                badge={{ label: 'Personne 1', text: 'text-[#185FA5]', dot: 'bg-[#185FA5]' }}
+                personne={p1} onChange={setP1}
+                label={p1Label} dot="bg-[#185FA5]" text="text-[#185FA5]"
               />
               <PersonneCard
-                personne={p2}
-                onChange={setP2}
-                badge={{ label: 'Personne 2', text: 'text-[#0F6E56]', dot: 'bg-[#0F6E56]' }}
+                personne={p2} onChange={setP2}
+                label={p2Label} dot="bg-[#0F6E56]" text="text-[#0F6E56]"
               />
             </div>
           )}
@@ -333,7 +413,7 @@ export default function Bloc1() {
           <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-6">
 
             {/* Statut matrimonial */}
-            <Field label="Statut matrimonial">
+            <Field label="Statut matrimonial actuel">
               <Select
                 value={foyer.statutMatrimonial}
                 onChange={v => setFoyer({ ...foyer, statutMatrimonial: v, regimeMatrimonial: '' })}
@@ -343,11 +423,32 @@ export default function Bloc1() {
                 <option>Marié(e)</option>
                 <option>Pacsé(e)</option>
                 <option>En concubinage</option>
-                <option>Divorcé(e)</option>
-                <option>Séparé(e)</option>
                 <option>Veuf(ve)</option>
               </Select>
             </Field>
+
+            {/* Union précédente */}
+            {foyer.statutMatrimonial && foyer.statutMatrimonial !== 'Veuf(ve)' && (
+              <div>
+                <Field label="Avez-vous déjà été marié(e) ou pacsé(e) précédemment ?">
+                  <ToggleButton
+                    value={foyer.unionPrecedente}
+                    onChange={v => setFoyer({ ...foyer, unionPrecedente: v, nbUnionsPrecedentes: '' })}
+                  />
+                </Field>
+                {foyer.unionPrecedente && (
+                  <div className="mt-3">
+                    <Field label="Nombre d'unions précédentes">
+                      <ChipSelector
+                        options={['1', '2', '3+']}
+                        value={foyer.nbUnionsPrecedentes}
+                        onChange={v => setFoyer({ ...foyer, nbUnionsPrecedentes: v })}
+                      />
+                    </Field>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Régime matrimonial */}
             {showRegime && (
@@ -385,8 +486,11 @@ export default function Bloc1() {
                 <div className="mt-4 space-y-3">
                   {foyer.enfants.map((enfant, i) => (
                     <div key={i} className="bg-gray-50 rounded-xl p-4">
-                      <div className="grid grid-cols-3 gap-3 mb-3">
-                        <Field label={`Prénom enfant ${i + 1}`}>
+                      <div className="text-[12px] font-semibold text-[#185FA5] mb-3">
+                        {getEnfantLabel(enfant, i)}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <Field label="Prénom">
                           <Input
                             value={enfant.prenom}
                             onChange={v => updateEnfant(i, 'prenom', v)}
@@ -401,28 +505,35 @@ export default function Bloc1() {
                             placeholder="ex: 8"
                           />
                         </Field>
-                        <Field label="Garde alternée">
-                          <div className="flex items-center h-10">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <div
-                                onClick={() => updateEnfant(i, 'gardeAlternee', !enfant.gardeAlternee)}
-                                className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer ${
-                                  enfant.gardeAlternee
-                                    ? 'bg-[#185FA5] border-[#185FA5]'
-                                    : 'border-gray-300 bg-white'
-                                }`}
-                              >
-                                {enfant.gardeAlternee && (
-                                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                  </svg>
-                                )}
-                              </div>
-                              <span className="text-[13px] text-gray-600">Oui</span>
-                            </label>
-                          </div>
-                        </Field>
                       </div>
+                      <div className="flex flex-wrap gap-4">
+                        <Checkbox
+                          checked={enfant.gardeAlternee}
+                          onChange={v => updateEnfant(i, 'gardeAlternee', v)}
+                          label="Garde alternée"
+                        />
+                        <Checkbox
+                          checked={enfant.handicape}
+                          onChange={v => updateEnfant(i, 'handicape', v)}
+                          label="Situation de handicap"
+                        />
+                        <Checkbox
+                          checked={enfant.autreUnion}
+                          onChange={v => updateEnfant(i, 'autreUnion', v)}
+                          label="Issu(e) d'une autre union"
+                        />
+                      </div>
+                      {enfant.autreUnion && (
+                        <div className="mt-3">
+                          <Field label="Union de">
+                            <ChipSelector
+                              options={[p1Label, p2Label]}
+                              value={enfant.autreUnionParent === 'P1' ? p1Label : enfant.autreUnionParent === 'P2' ? p2Label : ''}
+                              onChange={v => updateEnfant(i, 'autreUnionParent', v === p1Label ? 'P1' : 'P2')}
+                            />
+                          </Field>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -443,8 +554,11 @@ export default function Bloc1() {
                 <div className="mt-4 space-y-3">
                   {foyer.majeurs.map((majeur, i) => (
                     <div key={i} className="bg-gray-50 rounded-xl p-4">
-                      <div className="grid grid-cols-3 gap-3">
-                        <Field label={`Prénom enfant ${i + 1}`}>
+                      <div className="text-[12px] font-semibold text-[#185FA5] mb-3">
+                        {getEnfantLabel(majeur, i)}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <Field label="Prénom">
                           <Input
                             value={majeur.prenom}
                             onChange={v => updateMajeur(i, 'prenom', v)}
@@ -459,28 +573,35 @@ export default function Bloc1() {
                             placeholder="ex: 22"
                           />
                         </Field>
-                        <Field label="À charge financièrement">
-                          <div className="flex items-center h-10">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <div
-                                onClick={() => updateMajeur(i, 'aCharge', !majeur.aCharge)}
-                                className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer ${
-                                  majeur.aCharge
-                                    ? 'bg-[#185FA5] border-[#185FA5]'
-                                    : 'border-gray-300 bg-white'
-                                }`}
-                              >
-                                {majeur.aCharge && (
-                                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                  </svg>
-                                )}
-                              </div>
-                              <span className="text-[13px] text-gray-600">Oui</span>
-                            </label>
-                          </div>
-                        </Field>
                       </div>
+                      <div className="flex flex-wrap gap-4">
+                        <Checkbox
+                          checked={majeur.etudes}
+                          onChange={v => updateMajeur(i, 'etudes', v)}
+                          label="Études en cours"
+                        />
+                        <Checkbox
+                          checked={majeur.handicape}
+                          onChange={v => updateMajeur(i, 'handicape', v)}
+                          label="Situation de handicap"
+                        />
+                        <Checkbox
+                          checked={majeur.autreUnion}
+                          onChange={v => updateMajeur(i, 'autreUnion', v)}
+                          label="Issu(e) d'une autre union"
+                        />
+                      </div>
+                      {majeur.autreUnion && (
+                        <div className="mt-3">
+                          <Field label="Union de">
+                            <ChipSelector
+                              options={[p1Label, p2Label]}
+                              value={majeur.autreUnionParent === 'P1' ? p1Label : majeur.autreUnionParent === 'P2' ? p2Label : ''}
+                              onChange={v => updateMajeur(i, 'autreUnionParent', v === p1Label ? 'P1' : 'P2')}
+                            />
+                          </Field>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -489,63 +610,72 @@ export default function Bloc1() {
 
             {/* Autres personnes à charge */}
             <div>
-              <Field label="Autres personnes à charge">
-                <div className="flex gap-3">
-                  {['Non', 'Oui'].map(opt => (
-                    <button
-                      key={opt}
-                      onClick={() => setFoyer({ ...foyer, autresPersonnes: opt === 'Oui' })}
-                      className={`px-5 py-2 rounded-lg text-[13px] border transition-all ${
-                        (opt === 'Oui') === foyer.autresPersonnes
-                          ? 'bg-[#185FA5] border-[#185FA5] text-white'
-                          : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">
+                  Autres personnes à charge
+                </label>
+                <button
+                  onClick={addAutreCharge}
+                  className="text-[12px] text-[#185FA5] hover:text-[#0C447C] font-medium flex items-center gap-1 transition-colors"
+                >
+                  <span className="text-[16px] leading-none">+</span> Ajouter une personne
+                </button>
+              </div>
+
+              {foyer.autresCharges.length === 0 && (
+                <div className="text-[13px] text-gray-400 bg-gray-50 rounded-xl px-4 py-3">
+                  Aucune autre personne à charge déclarée.
                 </div>
-              </Field>
-              {foyer.autresPersonnes && (
-                <div className="mt-3 grid grid-cols-2 gap-4">
-                  <Field label="Description">
-                    <Input
-                      value={foyer.autresPersonnesDesc}
-                      onChange={v => setFoyer({ ...foyer, autresPersonnesDesc: v })}
-                      placeholder="ex: parent dépendant"
-                    />
-                  </Field>
+              )}
+
+              {foyer.autresCharges.map((charge, i) => (
+                <div key={i} className="bg-gray-50 rounded-xl p-4 mb-3">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-[12px] font-semibold text-[#185FA5]">
+                      Personne {i + 1}{charge.prenom ? ` — ${charge.prenom}` : ''}
+                    </span>
+                    <button
+                      onClick={() => removeAutreCharge(i)}
+                      className="text-[12px] text-red-400 hover:text-red-600 transition-colors"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <Field label="Lien de parenté">
+                      <Select
+                        value={charge.lien}
+                        onChange={v => updateAutreCharge(i, 'lien', v)}
+                      >
+                        <option value="">Sélectionnez...</option>
+                        <option>Parent</option>
+                        <option>Beau-parent</option>
+                        <option>Grand-parent</option>
+                        <option>Beau-fils / Belle-fille</option>
+                        <option>Enfant d'une autre union</option>
+                        <option>Frère / Sœur</option>
+                        <option>Autre</option>
+                      </Select>
+                    </Field>
+                    <Field label="Prénom">
+                      <Input
+                        value={charge.prenom}
+                        onChange={v => updateAutreCharge(i, 'prenom', v)}
+                        placeholder="ex: Geneviève"
+                      />
+                    </Field>
+                  </div>
+                  {charge.lien === 'Autre' && (
+                    <div className="mb-3">
+                      <Field label="Précisez">
+                        <Input
+                          value={charge.autreDesc}
+                          onChange={v => updateAutreCharge(i, 'autreDesc', v)}
+                          placeholder="ex: tuteur légal..."
+                        />
+                      </Field>
+                    </div>
+                  )}
                   <Field label="Coût mensuel estimé (€)">
                     <Input
                       type="number"
-                      value={foyer.autresPersonnesCout}
-                      onChange={v => setFoyer({ ...foyer, autresPersonnesCout: v })}
-                      placeholder="ex: 500"
-                    />
-                  </Field>
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
-
-      </div>
-
-      {/* Footer */}
-      <div className="fixed bottom-0 left-[220px] right-0 bg-white/80 backdrop-blur border-t border-gray-100 px-8 py-4 flex justify-between items-center">
-        <button className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors">
-          Annuler
-        </button>
-        <div className="flex items-center gap-3">
-          <button className="text-[13px] text-gray-500 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-            Enregistrer
-          </button>
-          <button className="text-[13px] text-white px-5 py-2 rounded-lg bg-[#185FA5] hover:bg-[#0C447C] transition-colors shadow-[0_2px_8px_rgba(24,95,165,0.3)]">
-            Suivant →
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
