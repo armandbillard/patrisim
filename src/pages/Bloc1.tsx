@@ -679,3 +679,34 @@ export default function Bloc1() {
                   <Field label="Coût mensuel estimé (€)">
                     <Input
                       type="number"
+                      value={charge.coutMensuel}
+                      onChange={v => updateAutreCharge(i, 'coutMensuel', v)}
+                      placeholder="ex: 500"
+                    />
+                  </Field>
+                </div>
+              ))}
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      {/* Footer */}
+      <div className="fixed bottom-0 left-[220px] right-0 bg-white/80 backdrop-blur border-t border-gray-100 px-8 py-4 flex justify-between items-center">
+        <button className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors">
+          Annuler
+        </button>
+        <div className="flex items-center gap-3">
+          <button className="text-[13px] text-gray-500 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+            Enregistrer
+          </button>
+          <button className="text-[13px] text-white px-5 py-2 rounded-lg bg-[#185FA5] hover:bg-[#0C447C] transition-colors shadow-[0_2px_8px_rgba(24,95,165,0.3)]">
+            Suivant →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
