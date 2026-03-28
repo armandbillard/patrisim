@@ -1,6 +1,3 @@
-// src/pages/Landing.tsx — VERSION MISE À JOUR
-// Seul changement vs l'original : le bouton CTA pointe vers /start au lieu de /bloc1
-
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Shield, Brain, BarChart2, Lock, Star, ChevronRight } from 'lucide-react'
 
@@ -19,11 +16,8 @@ export default function Landing() {
           <span className="text-[11px] text-gray-400 border border-gray-700 px-3 py-1 rounded-full">
             Projet étudiant · Master Gestion de Patrimoine
           </span>
-          <button
-            type="button"
-            onClick={() => navigate('/start')}
-            className="text-[13px] font-semibold px-4 py-2 rounded-lg bg-[#185FA5] hover:bg-[#0C447C] transition-colors"
-          >
+          <button type="button" onClick={() => navigate('/start')}
+            className="text-[13px] font-semibold px-4 py-2 rounded-lg bg-[#185FA5] hover:bg-[#0C447C] transition-colors">
             Démarrer →
           </button>
         </div>
@@ -46,13 +40,14 @@ export default function Landing() {
         </p>
 
         <div className="flex flex-col items-center gap-4">
-          <button
-            type="button"
-            onClick={() => navigate('/start')}
-            className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-[#185FA5] hover:bg-[#0C447C] text-[15px] font-bold transition-all shadow-[0_8px_30px_rgba(24,95,165,0.4)] hover:shadow-[0_8px_40px_rgba(24,95,165,0.6)] hover:-translate-y-0.5"
-          >
+          <button type="button" onClick={() => navigate('/start')}
+            className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-[#185FA5] hover:bg-[#0C447C] text-[15px] font-bold transition-all shadow-[0_8px_30px_rgba(24,95,165,0.4)] hover:shadow-[0_8px_40px_rgba(24,95,165,0.6)] hover:-translate-y-0.5">
             Commencer mon analyse gratuite
             <ArrowRight size={18} />
+          </button>
+          <button type="button" onClick={() => navigate('/demo')}
+            className="text-[13px] text-gray-400 hover:text-white transition-colors underline underline-offset-4">
+            Voir une démonstration avec un profil type →
           </button>
           <p className="text-[12px] text-gray-500">
             Aucun compte requis · 100% confidentiel · Résultats en 30 secondes
@@ -64,7 +59,7 @@ export default function Landing() {
       <section className="py-10 border-y border-white/5">
         <div className="max-w-4xl mx-auto px-8 grid grid-cols-4 gap-6 text-center">
           {[
-            { n: '7', l: 'blocs d\'analyse' },
+            { n: '7', l: "blocs d'analyse" },
             { n: '6', l: 'modules dashboard' },
             { n: '30+', l: 'simulateurs' },
             { n: '100%', l: 'confidentiel' },
@@ -79,17 +74,15 @@ export default function Landing() {
 
       {/* Fonctionnalités */}
       <section className="py-20 px-8 max-w-4xl mx-auto">
-        <h2 className="text-[28px] font-bold text-center mb-12">
-          Tout ce dont vous avez besoin
-        </h2>
+        <h2 className="text-[28px] font-bold text-center mb-12">Tout ce dont vous avez besoin</h2>
         <div className="grid grid-cols-3 gap-4">
           {[
-            { icon: <Brain size={20} />, title: 'Analyse IA personnalisée', desc: 'Claude analyse l\'ensemble de votre profil et génère un bilan patrimonial sur-mesure.' },
+            { icon: <Brain size={20} />, title: 'Analyse IA personnalisée', desc: "L'IA analyse l'ensemble de votre profil et génère un bilan patrimonial sur-mesure." },
             { icon: <BarChart2 size={20} />, title: 'Dashboard interactif', desc: '6 modules : bilan, retraite, portefeuille, fiscalité, succession, objectifs.' },
             { icon: <Shield size={20} />, title: 'Conforme MiFID II', desc: 'Questionnaire de profil investisseur conforme à la réglementation européenne.' },
             { icon: <Lock size={20} />, title: 'Données sécurisées', desc: 'Vos informations restent sur votre appareil. Aucun stockage serveur sans votre accord.' },
             { icon: <ChevronRight size={20} />, title: 'Parcours adaptatif', desc: 'Répondez uniquement aux questions pertinentes selon vos objectifs.' },
-            { icon: <Star size={20} />, title: 'Recommandations concrètes', desc: 'Plan d\'action priorisé avec impact estimé pour chaque recommandation.' },
+            { icon: <Star size={20} />, title: 'Recommandations concrètes', desc: "Plan d'action priorisé avec impact estimé pour chaque recommandation." },
           ].map(f => (
             <div key={f.title} className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/8 transition-colors">
               <div className="w-9 h-9 rounded-xl bg-[#185FA5]/20 text-[#185FA5] flex items-center justify-center mb-4">{f.icon}</div>
@@ -127,7 +120,9 @@ export default function Landing() {
       <section className="py-16 px-8 max-w-2xl mx-auto text-center">
         <h2 className="text-[22px] font-bold mb-4">À propos</h2>
         <p className="text-[14px] text-gray-400 leading-relaxed mb-6">
-          PatriSim est un projet étudiant développé dans le cadre d'un Master Gestion de Patrimoine par <strong className="text-white">Armand Billard</strong>. Il est destiné aux patrimoines inférieurs à <strong className="text-white">500 000 €</strong> et constitue un outil d'aide à la réflexion, pas un conseil en investissement.
+          PatriSim est un projet étudiant développé dans le cadre d'un Master Gestion de Patrimoine par{' '}
+          <strong className="text-white">Armand Billard</strong>. Il est destiné aux patrimoines inférieurs à{' '}
+          <strong className="text-white">500 000 €</strong> et constitue un outil d'aide à la réflexion, pas un conseil en investissement.
         </p>
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-5 py-3 text-[12px] text-amber-300 leading-relaxed">
           PatriSim ne remplace pas l'accompagnement d'un conseiller en gestion de patrimoine agréé (CGP). Consultez un professionnel pour toute décision financière importante.
@@ -138,13 +133,16 @@ export default function Landing() {
       <section className="py-16 px-8 text-center">
         <h2 className="text-[28px] font-bold mb-4">Prêt à analyser votre patrimoine ?</h2>
         <p className="text-[14px] text-gray-400 mb-8">Gratuit · Sans inscription · Résultats en moins de 2 minutes</p>
-        <button
-          type="button"
-          onClick={() => navigate('/start')}
-          className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-[#185FA5] hover:bg-[#0C447C] text-[15px] font-bold transition-all shadow-[0_8px_30px_rgba(24,95,165,0.4)]"
-        >
-          Commencer gratuitement <ArrowRight size={18} />
-        </button>
+        <div className="flex flex-col items-center gap-3">
+          <button type="button" onClick={() => navigate('/start')}
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-[#185FA5] hover:bg-[#0C447C] text-[15px] font-bold transition-all shadow-[0_8px_30px_rgba(24,95,165,0.4)]">
+            Commencer gratuitement <ArrowRight size={18} />
+          </button>
+          <button type="button" onClick={() => navigate('/demo')}
+            className="text-[13px] text-gray-400 hover:text-white transition-colors underline underline-offset-4">
+            Voir une démonstration →
+          </button>
+        </div>
       </section>
 
       {/* Footer */}
