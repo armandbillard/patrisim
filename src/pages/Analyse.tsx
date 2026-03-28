@@ -315,8 +315,16 @@ Génère une analyse complète avec cette structure JSON exacte :
   })
   const data = await response.json()
   const text = data.content?.find((b: { type: string }) => b.type === 'text')?.text || ''
-  const clean = text.replace(/```json|```/g, '').trim()
-  return JSON.parse(clean) as AIResult
+if (!text) throw new Error('Réponse vide de l\'API')
+const clean = text
+  .replace(/```json\n?/g, '')
+  .replace(/```\n?/g, '')
+  .trim()
+const jsonStart = clean.indexOf('{')
+const jsonEnd = clean.lastIndexOf('}')
+if (jsonStart === -1 || jsonEnd === -1) throw new Error('JSON introuvable dans la réponse')
+const jsonStr = clean.substring(jsonStart, jsonEnd + 1)
+return JSON.parse(jsonStr) as AIResult
 }
 
 // ─── UI components ────────────────────────────────────────────────────────────
