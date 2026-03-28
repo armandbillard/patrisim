@@ -282,7 +282,7 @@ async function callClaudeAPI(clientData: ReturnType<typeof buildClientData>): Pr
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4000,
       system: `Tu es un conseiller en gestion de patrimoine (CGP) expert français, bienveillant et pédagogue. Tu analyses le profil patrimonial complet d'un client et génères un bilan personnalisé structuré.
 
