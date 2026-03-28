@@ -210,7 +210,7 @@ export default function Bloc6() {
       objImpotsEconomie:'', objImpotsToleranceBlockage:'',
       objTransmissionMontant:'', objTransmissionBenef:[], objTransmissionHorizon:'',
       aConvictions:null,
-      universInvest:[], prefGeo:'', secteursPriv:[], secteursExcl:'', prefESG:'',
+      universInvest:[], prefGeo:'', secteursPriv:[], secteursExcl:[], prefESG:'',
       liquiditePct:20, suiviFrequence:'', modeConseil:'',
     } as Bloc6State)
     // Pré-remplir retraite depuis Bloc5

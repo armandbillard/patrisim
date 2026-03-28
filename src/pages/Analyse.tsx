@@ -155,13 +155,13 @@ function buildClientData() {
   const bloc7 = loadLS<Record<string, unknown>>('patrisim_bloc7', {})
 
   // Calculs clés
-  const b2 = bloc2 as { comptesCourants?: {solde?: string}[]; livrets?: {solde?: string}[]; peas?: {valeur?: string}[]; avs?: {valeurRachat?: string}[]; pers?: {valeur?: string}[]; ctos?: {valeur?: string}[]; biens?: {loue?: boolean; location?: {loyerMensuel?: string}}[] }
+  const b2 = bloc2 as { comptesCourants?: {solde?: string}[]; livrets?: {solde?: string}[]; peas?: {valeur?: string}[]; avs?: {valeurRachat?: string}[]; pers?: {valeur?: string}[]; ctos?: {valeur?: string}[]; biens?: {loue?: boolean; location?: {loyerMensuel?: string}}[]; epargneSalariale?: {valeur?: string; type?: string}[]; crypto?: {valeur?: string; prixRevient?: string}; vehicules?: {valeur?: string}[]; partsSociales?: {nomSociete?: string; pctDetenu?: string; valeur?: string}[]; origine?: Record<string,number> }
   const totalImmo = parseNum((bloc2 as {totalImmo?: number}).totalImmo || 0)
   const totalFin = parseNum((bloc2 as {totalFinancier?: number}).totalFinancier || 0)
   const totalAutres = parseNum((bloc2 as {totalAutres?: number}).totalAutres || 0)
   const patrimoineBrut = totalImmo + totalFin + totalAutres
 
-  const b3 = bloc3 as { creditsImmo?: {mensualiteHA?: string; mensualiteAssurance?: string; crd?: string}[]; creditsConso?: {mensualite?: string; crd?: string}[] }
+  const b3 = bloc3 as { creditsImmo?: {mensualiteHA?: string; mensualiteAssurance?: string; crd?: string; etablissement?: string; typePret?: string; taux?: string; montantInitial?: string; garantie?: string}[]; creditsConso?: {mensualite?: string; crd?: string; type?: string; montantInitial?: string; taeg?: string}[]; autresDettes?: {description?: string; montantDu?: string; mensualite?: string}[] }
   const totalDettes = (b3.creditsImmo || []).reduce((a, c) => a + parseNum(c.crd), 0) + (b3.creditsConso || []).reduce((a, c) => a + parseNum(c.crd), 0)
   const totalMensualites = (b3.creditsImmo || []).reduce((a, c) => a + parseNum(c.mensualiteHA) + parseNum(c.mensualiteAssurance), 0) + (b3.creditsConso || []).reduce((a, c) => a + parseNum(c.mensualite), 0)
   const patrimoineNet = patrimoineBrut - totalDettes
@@ -278,7 +278,7 @@ function buildClientData() {
 // ─── Call API ─────────────────────────────────────────────────────────────────
 
 async function callClaudeAPI(clientData: ReturnType<typeof buildClientData>): Promise<AIResult> {
-  const response = await fetch('/api/claude', {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

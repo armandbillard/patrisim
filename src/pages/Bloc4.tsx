@@ -91,7 +91,7 @@ async function fileToBase64(file:File):Promise<string> {
   return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res((r.result as string).split(',')[1]);r.onerror=()=>rej();r.readAsDataURL(file)})
 }
 
-async function extractPDF(base64:string):Promise<Partial<FiscalData>> {
+async function extractPDF(base64:string):Promise<Record<string,unknown>> {
   const response = await fetch('/api/claude', {
     method:'POST',
     headers:{'Content-Type':'application/json'},

@@ -1,18 +1,15 @@
 // src/store/usePatriStore.ts
-// Store Zustand global — state partagé entre tous les blocs
-
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+// Store léger sans dépendance externe — utilise localStorage directement
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Bloc0State {
+export interface Bloc0State {
   objectifs: string[]
   niveauDetail: 'rapide' | 'complet'
   done: boolean
 }
 
-interface AIAnalysis {
+export interface AIAnalysis {
   generated_at: number
   score_patrimonial: Record<string, unknown>
   synthese_executive: Record<string, unknown>
@@ -26,38 +23,31 @@ interface AIAnalysis {
   hypotheses_utilisees: Record<string, unknown>
 }
 
-interface PatriStore {
-  // Bloc 0
-  bloc0: Bloc0State
-  setBloc0: (b: Partial<Bloc0State>) => void
-
-  // Progression globale
-  currentStep: number
-  setCurrentStep: (n: number) => void
-  stepsCompleted: number[]
-  markStepDone: (n: number) => void
-
-  // Analyse IA
-  aiAnalysis: AIAnalysis | null
-  setAIAnalysis: (a: AIAnalysis) => void
-  aiGeneratedAt: number | null
-
-  // Hypothèses dashboard
-  hypotheses: {
-    rendement: number
-    inflation: number
-    immo: number
-    croissance: number
-    espVie: number
-  }
-  setHypotheses: (h: Partial<PatriStore['hypotheses']>) => void
-  resetHypotheses: () => void
-
-  // Actions
-  reset: () => void
+export interface Hypotheses {
+  rendement: number
+  inflation: number
+  immo: number
+  croissance: number
+  espVie: number
 }
 
-const DEFAULT_HYPOTHESES = {
+// ─── Helpers localStorage ─────────────────────────────────────────────────────
+
+function getLS<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return fallback
+    return { ...fallback as object, ...JSON.parse(raw) } as T
+  } catch { return fallback }
+}
+
+function setLS<T>(key: string, value: T): void {
+  try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
+}
+
+// ─── API publique ─────────────────────────────────────────────────────────────
+
+const DEFAULT_HYPOTHESES: Hypotheses = {
   rendement: 4,
   inflation: 2,
   immo: 2,
@@ -65,68 +55,51 @@ const DEFAULT_HYPOTHESES = {
   espVie: 87,
 }
 
-// ─── Store ────────────────────────────────────────────────────────────────────
+export const PatriStore = {
+  // Bloc 0
+  getBloc0: (): Bloc0State =>
+    getLS('patrisim_bloc0', { objectifs: [], niveauDetail: 'complet' as const, done: false }),
+  setBloc0: (b: Partial<Bloc0State>) =>
+    setLS('patrisim_bloc0', { ...PatriStore.getBloc0(), ...b }),
 
-export const usePatriStore = create<PatriStore>()(
-  persist(
-    (set) => ({
-      // Bloc 0
-      bloc0: { objectifs: [], niveauDetail: 'complet', done: false },
-      setBloc0: (b) => set((s) => ({ bloc0: { ...s.bloc0, ...b } })),
+  // Blocs complétés
+  getStepsCompleted: (): number[] =>
+    getLS<{ items: number[] }>('patrisim_steps', { items: [] }).items,
+  markStepDone: (n: number) => {
+    const steps = PatriStore.getStepsCompleted()
+    if (!steps.includes(n)) setLS('patrisim_steps', { items: [...steps, n] })
+  },
 
-      // Progression
-      currentStep: 0,
-      setCurrentStep: (n) => set({ currentStep: n }),
-      stepsCompleted: [],
-      markStepDone: (n) =>
-        set((s) => ({
-          stepsCompleted: s.stepsCompleted.includes(n)
-            ? s.stepsCompleted
-            : [...s.stepsCompleted, n],
-        })),
+  // Analyse IA
+  getAIAnalysis: (): AIAnalysis | null => {
+    try {
+      const raw = localStorage.getItem('patrisim_analyse')
+      if (!raw) return null
+      const { data } = JSON.parse(raw)
+      return data
+    } catch { return null }
+  },
+  setAIAnalysis: (a: AIAnalysis) =>
+    setLS('patrisim_analyse', { data: a, ts: Date.now() }),
 
-      // IA
-      aiAnalysis: null,
-      setAIAnalysis: (a) => set({ aiAnalysis: a, aiGeneratedAt: Date.now() }),
-      aiGeneratedAt: null,
+  // Hypothèses
+  getHypotheses: (): Hypotheses =>
+    getLS('patrisim_hypo', DEFAULT_HYPOTHESES),
+  setHypotheses: (h: Partial<Hypotheses>) =>
+    setLS('patrisim_hypo', { ...PatriStore.getHypotheses(), ...h }),
+  resetHypotheses: () =>
+    setLS('patrisim_hypo', DEFAULT_HYPOTHESES),
 
-      // Hypothèses
-      hypotheses: DEFAULT_HYPOTHESES,
-      setHypotheses: (h) =>
-        set((s) => ({ hypotheses: { ...s.hypotheses, ...h } })),
-      resetHypotheses: () => set({ hypotheses: DEFAULT_HYPOTHESES }),
+  // Reset global
+  reset: () => {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('patrisim'))
+    keys.forEach(k => localStorage.removeItem(k))
+  },
+}
 
-      // Reset global
-      reset: () =>
-        set({
-          bloc0: { objectifs: [], niveauDetail: 'complet', done: false },
-          currentStep: 0,
-          stepsCompleted: [],
-          aiAnalysis: null,
-          aiGeneratedAt: null,
-          hypotheses: DEFAULT_HYPOTHESES,
-        }),
-    }),
-    {
-      name: 'patrisim-store', // clé localStorage
-      partialize: (s) => ({
-        bloc0: s.bloc0,
-        stepsCompleted: s.stepsCompleted,
-        aiAnalysis: s.aiAnalysis,
-        aiGeneratedAt: s.aiGeneratedAt,
-        hypotheses: s.hypotheses,
-      }),
-    }
-  )
-)
+// ─── Helpers blocs actifs ─────────────────────────────────────────────────────
 
-// ─── Helpers exportés ─────────────────────────────────────────────────────────
-
-/** Retourne les numéros de blocs actifs selon les objectifs Bloc0 */
-export function getBlocsActifs(
-  objectifs: string[],
-  niveau: 'rapide' | 'complet'
-): number[] {
+export function getBlocsActifs(objectifs: string[], niveau: 'rapide' | 'complet'): number[] {
   if (!objectifs.length || objectifs.includes('bilan')) return [1,2,3,4,5,6,7]
   const blocs = new Set<number>([1])
   if (objectifs.includes('retraite'))       { blocs.add(4); blocs.add(5) }
@@ -144,7 +117,6 @@ export function getBlocsActifs(
   return Array.from(blocs).sort()
 }
 
-/** Prochain bloc après le n courant */
 export function getNextBloc(current: number, objectifs: string[], niveau: 'rapide' | 'complet'): number | null {
   const actifs = getBlocsActifs(objectifs, niveau)
   const idx = actifs.indexOf(current)
