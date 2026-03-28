@@ -278,7 +278,7 @@ function buildClientData() {
 // ─── Call API ─────────────────────────────────────────────────────────────────
 
 async function callClaudeAPI(clientData: ReturnType<typeof buildClientData>): Promise<AIResult> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('/api/claude', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
