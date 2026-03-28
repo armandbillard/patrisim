@@ -1,6 +1,3 @@
-// api/claude.ts — Proxy Vercel utilisant Google Gemini (gratuit)
-// Remplace api/claude.ts existant
-
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -15,10 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY non configurée' })
 
   try {
-    // Extraire le contenu du body Anthropic-style
     const { messages, system, max_tokens } = req.body
-
-    // Construire le prompt Gemini
     const systemPrompt = system || ''
     const userMessage = messages?.[0]?.content || ''
 
@@ -47,19 +41,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const data = await response.json()
 
+    // Log complet pour debug
+    console.log('Gemini status:', response.status)
+    console.log('Gemini response keys:', Object.keys(data))
+    console.log('Gemini candidates:', JSON.stringify(data.candidates?.slice(0,1)))
+    console.log('Gemini error:', JSON.stringify(data.error))
+
     if (!response.ok) {
-      return res.status(response.status).json({ error: data.error?.message || 'Erreur Gemini' })
+      return res.status(response.status).json({ 
+        error: data.error?.message || 'Erreur Gemini',
+        details: data 
+      })
     }
 
-    // Convertir la réponse Gemini au format Anthropic
-    // pour que le frontend n'ait pas besoin de changer
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    
+    if (!text) {
+      return res.status(500).json({ 
+        error: 'Texte vide dans la réponse Gemini',
+        finishReason: data.candidates?.[0]?.finishReason,
+        candidates: data.candidates?.length
+      })
+    }
 
     return res.status(200).json({
       content: [{ type: 'text', text }]
     })
 
   } catch (error) {
-    return res.status(500).json({ error: 'Erreur proxy Gemini', detail: String(error) })
+    console.error('Proxy error:', error)
+    return res.status(500).json({ error: 'Erreur proxy', detail: String(error) })
   }
 }
