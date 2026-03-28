@@ -32,6 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
 
     const data = await response.json()
+    console.log('Anthropic error:', JSON.stringify(data))
     return res.status(response.status).json(data)
 
   } catch (error) {
