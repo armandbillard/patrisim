@@ -1,10 +1,6 @@
-// api/claude.ts — Vercel Serverless Function
-// Place ce fichier dans /api/claude.ts à la racine du projet
-
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -16,6 +12,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY non configurée' })
 
   try {
+    const { model, max_tokens, system, messages } = req.body
+
+    const cleanBody = {
+      model: model || 'claude-haiku-4-5',
+      max_tokens: max_tokens || 4000,
+      system,
+      messages,
+    }
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -23,12 +28,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify(req.body),
+      body: JSON.stringify(cleanBody),
     })
 
     const data = await response.json()
     return res.status(response.status).json(data)
+
   } catch (error) {
-    return res.status(500).json({ error: 'Erreur proxy Claude', detail: String(error) })
+    return res.status(500).json({ error: 'Erreur proxy', detail: String(error) })
   }
 }
