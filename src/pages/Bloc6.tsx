@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle, GripVertical } from 'lucide-react'
-import SyntheseButton from '../components/SyntheseButton'
+import { CheckCircle, Info } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -10,29 +9,16 @@ interface MifidReponses {
 }
 
 interface Bloc6State {
-  // Questionnaire risque — étape séparée
   mifidDone: boolean
   reponses: MifidReponses
-  // Objectifs
-  objectifsSelectionnes: string[]
-  objectifsOrder: string[]
-  objCapitalMontant: string
-  objCapitalHorizon: number
-  objRevenusMontant: string
-  objRevenusQuand: string
-  objImpotsEconomie: string
-  objImpotsToleranceBlockage: string
-  objTransmissionMontant: string
-  objTransmissionBenef: string[]
-  objTransmissionHorizon: string
-  // Convictions — question préalable
+  // Convictions
   aConvictions: boolean | null
   universInvest: string[]
   prefGeo: string
   secteursPriv: string[]
   secteursExcl: string[]
   prefESG: string
-  // Diversification & suivi
+  // Suivi
   liquiditePct: number
   suiviFrequence: string
   modeConseil: string
@@ -43,17 +29,21 @@ interface Bloc6State {
 function loadLS<T extends object>(key:string, fb:T):T {
   try{const r=localStorage.getItem(key);if(!r)return fb;return{...fb,...JSON.parse(r)}}catch{return fb}
 }
-const fmt=(n:number)=>n.toLocaleString('fr-FR',{maximumFractionDigits:0})
-const pn=(s:unknown)=>{const n=parseFloat(String(s).replace(/\s/g,'').replace(',','.'));return isNaN(n)?0:n}
 
 function getProfilMifid(score:number) {
-  if(score<=10) return {label:'Défensif',      color:'#185FA5', bg:'#E6F1FB', text:'#0C447C', pos:0}
-  if(score<=14) return {label:'Équilibré',     color:'#0F6E56', bg:'#E1F5EE', text:'#085041', pos:1}
-  if(score<=17) return {label:'Dynamique',     color:'#D97706', bg:'#FEF3C7', text:'#92400E', pos:2}
-  return           {label:'Offensif',          color:'#DC2626', bg:'#FEF2F2', text:'#991B1B', pos:3}
+  if(score<=10) return {label:'Défensif',   color:'#185FA5', bg:'#E6F1FB', text:'#0C447C'}
+  if(score<=14) return {label:'Équilibré',  color:'#0F6E56', bg:'#E1F5EE', text:'#085041'}
+  if(score<=17) return {label:'Dynamique',  color:'#D97706', bg:'#FEF3C7', text:'#92400E'}
+  return           {label:'Offensif',       color:'#DC2626', bg:'#FEF2F2', text:'#991B1B'}
 }
 
-const PROFIL_LABELS = ['Défensif','Équilibré','Dynamique','Offensif']
+const defaultState = (): Bloc6State => ({
+  mifidDone: false,
+  reponses: {q1:0,q2:0,q3:0,q4:0,q5:0,q6:0,q7:0},
+  aConvictions: null,
+  universInvest: [], prefGeo: '', secteursPriv: [], secteursExcl: [], prefESG: '',
+  liquiditePct: 20, suiviFrequence: '', modeConseil: '',
+})
 
 // ─── UI de base ───────────────────────────────────────────────────────────────
 
@@ -62,9 +52,6 @@ function SectionTitle({children}:{children:string}){
 }
 function Field({label,children,tooltip}:{label:string;children:React.ReactNode;tooltip?:string}){
   return(<div><div className="flex items-center gap-1.5 mb-2"><label className="block text-[11px] font-medium text-gray-400 uppercase tracking-widest">{label}</label>{tooltip&&<div className="group relative"><span className="w-4 h-4 rounded-full border border-gray-200 text-gray-400 text-[10px] flex items-center justify-center cursor-help">?</span><div className="absolute bottom-6 left-0 bg-gray-900 text-white text-[11px] px-3 py-2 rounded-lg w-56 hidden group-hover:block z-20 shadow-xl">{tooltip}</div></div>}</div>{children}</div>)
-}
-function Input({value,onChange,type='text',placeholder='',suffix}:{value:string;onChange:(v:string)=>void;type?:string;placeholder?:string;suffix?:string}){
-  return(<div className="relative"><input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} className="w-full h-10 bg-gray-50 border border-transparent rounded-lg px-3 text-[13px] text-gray-800 placeholder-gray-300 focus:outline-none focus:bg-white focus:border-[#185FA5] focus:shadow-[0_0_0_3px_rgba(24,95,165,0.08)] transition-all" style={suffix?{paddingRight:'2.5rem'}:{}}/>{suffix&&<span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-gray-400 pointer-events-none">{suffix}</span>}</div>)
 }
 function Chips({options,value,onChange,multi=false,small=false}:{options:string[];value:string|string[];onChange:(v:string|string[])=>void;multi?:boolean;small?:boolean}){
   const isSel=(o:string)=>multi?(value as string[]).includes(o):value===o
@@ -76,373 +63,378 @@ function InfoCard({children,color='blue'}:{children:React.ReactNode;color?:'blue
   return<div className={`rounded-xl border px-4 py-3 text-[12px] leading-relaxed ${s[color]}`}>{children}</div>
 }
 
-// ─── DragList priorisation ────────────────────────────────────────────────────
+// ─── Questions MiFID ──────────────────────────────────────────────────────────
 
-function PriorityList({items,onChange}:{items:string[];onChange:(items:string[])=>void}){
-  const [drag,setDrag]=useState<number|null>(null)
-  const [over,setOver]=useState<number|null>(null)
-  const end=()=>{if(drag!==null&&over!==null&&drag!==over){const n=[...items];const[m]=n.splice(drag,1);n.splice(over,0,m);onChange(n)}setDrag(null);setOver(null)}
-  return(
-    <div className="space-y-2">
-      {items.map((item,i)=>(
-        <div key={item} draggable onDragStart={()=>setDrag(i)} onDragOver={e=>{e.preventDefault();setOver(i)}} onDragEnd={end}
-          className={`flex items-center gap-3 bg-white rounded-xl border px-4 py-3 cursor-grab active:cursor-grabbing transition-all ${over===i&&drag!==i?'border-[#185FA5] bg-[#E6F1FB]':'border-gray-100'}`}>
-          <span className="w-6 h-6 rounded-full bg-[#185FA5] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">{i+1}</span>
-          <span className="text-[13px] text-gray-700 font-medium flex-1">{item}</span>
-          <GripVertical size={16} className="text-gray-300"/>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ─── Questionnaire MiFID (étape séparée) ─────────────────────────────────────
-
-function QuestionnaireMifid({reponses,onChange,onValidate}:{
-  reponses:MifidReponses;
-  onChange:(r:MifidReponses)=>void;
-  onValidate:()=>void
-}){
-  const questions = [
-    {q:'Votre portefeuille perd 20% en 3 mois. Quelle est votre réaction ?',opts:[{l:'Je vends tout pour sécuriser ce qui reste',p:1},{l:"J'attends sans rien faire",p:2},{l:"Je renforce mes positions, c'est une opportunité",p:3}]},
-    {q:'Pour vos investissements, votre horizon de placement est :',opts:[{l:'Moins de 3 ans',p:1},{l:'Entre 3 et 8 ans',p:2},{l:'Plus de 8 ans',p:3}]},
-    {q:'Votre priorité en matière d\'investissement est :',opts:[{l:'Protéger mon capital avant tout, même si le rendement est faible',p:1},{l:'Générer des revenus réguliers avec un risque limité',p:2},{l:'Faire croître mon capital sur le long terme',p:3}]},
-    {q:'Votre expérience en matière d\'investissement financier :',opts:[{l:'Nulle ou très limitée',p:1},{l:'Quelques investissements sur des produits simples (livrets, AV)',p:2},{l:'Expérience régulière sur des produits variés (actions, ETF, immobilier...)',p:3}]},
-    {q:'Dans les 12 prochains mois, vous pourriez avoir besoin de mobiliser :',opts:[{l:"Plus de 50% de votre épargne",p:1},{l:'Entre 10% et 50%',p:2},{l:'Moins de 10%',p:3}]},
-    {q:'Une baisse temporaire de 30% de votre portefeuille vous semble :',opts:[{l:"Inacceptable — je ne peux pas supporter cette perte",p:1},{l:"Difficile mais supportable sur le court terme",p:2},{l:"Une opportunité d'achat à saisir",p:3}]},
-    {q:"En cas de perte totale de cet investissement, l'impact sur votre vie quotidienne serait :",opts:[{l:'Catastrophique — cela affecterait gravement mon niveau de vie',p:1},{l:'Difficile mais gérable',p:2},{l:"Négligeable — cela n'affecterait pas mon niveau de vie",p:3}]},
-  ]
-  const keys:('q1'|'q2'|'q3'|'q4'|'q5'|'q6'|'q7')[]=(['q1','q2','q3','q4','q5','q6','q7'])
-  const score=Object.values(reponses).reduce((a,b)=>a+b,0)
-  const nb=Object.values(reponses).filter(v=>v>0).length
-  const profil=nb===7?getProfilMifid(score):null
-
-  return(
-    <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <span className="text-[11px] font-semibold text-[#185FA5] uppercase tracking-widest">Questionnaire obligatoire</span>
-        <h2 className="text-[22px] font-bold text-gray-900">Profil investisseur MiFID II</h2>
-        <p className="text-[13px] text-gray-400">7 questions pour déterminer votre tolérance au risque</p>
-      </div>
-
-      <InfoCard color="blue">Ce questionnaire est conforme aux exigences MiFID II. Vos réponses déterminent votre profil investisseur officiel.</InfoCard>
-
-      {/* Progression */}
-      <div className="flex gap-1 justify-center">
-        {keys.map((k,i)=><div key={k} className={`h-1.5 rounded-full transition-all ${reponses[k]>0?'bg-[#185FA5] w-8':'bg-gray-200 w-4'}`}/>)}
-      </div>
-      <p className="text-[12px] text-gray-400 text-center">Question {Math.min(nb+1,7)} / 7</p>
-
-      {/* Questions */}
-      <div className="space-y-4">
-        {questions.map((q,i)=>(
-          <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-start gap-3 mb-4">
-              <span className="w-7 h-7 rounded-full bg-[#E6F1FB] text-[#0C447C] text-[12px] font-bold flex items-center justify-center flex-shrink-0">{i+1}</span>
-              <p className="text-[14px] font-semibold text-gray-800 leading-snug">{q.q}</p>
-            </div>
-            <div className="space-y-2">
-              {q.opts.map((opt,j)=>(
-                <button key={j} type="button" onClick={()=>onChange({...reponses,[keys[i]]:opt.p})}
-                  className={`w-full text-left px-4 py-3 rounded-xl border transition-all text-[13px] ${reponses[keys[i]]===opt.p?'bg-[#185FA5] border-[#185FA5] text-white':'bg-gray-50 border-transparent text-gray-700 hover:bg-gray-100'}`}>
-                  <span className={`font-semibold mr-2 ${reponses[keys[i]]===opt.p?'text-blue-200':'text-gray-400'}`}>{['a','b','c'][j]})</span>
-                  {opt.l}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Résultat */}
-      {profil&&(
-        <div className="rounded-2xl border-2 p-6 space-y-3" style={{borderColor:profil.color,backgroundColor:profil.bg}}>
-          <div className="flex items-center justify-between">
-            <div><p className="text-[11px] uppercase tracking-widest mb-1" style={{color:profil.text}}>Votre profil investisseur</p>
-              <p className="text-[26px] font-bold" style={{color:profil.color}}>{profil.label}</p></div>
-            <div className="text-right"><p className="text-[11px] uppercase tracking-widest mb-1" style={{color:profil.text}}>Score MiFID II</p>
-              <p className="text-[26px] font-bold" style={{color:profil.color}}>{score} / 21</p></div>
-          </div>
-          {/* Jauge */}
-          <div className="relative h-3 rounded-full overflow-hidden flex">
-            {PROFIL_LABELS.map((l,i)=>{
-              const p=getProfilMifid(i<=0?8:i<=1?12:i<=2?16:19)
-              return<div key={l} className="flex-1 transition-all" style={{backgroundColor:i===profil.pos?p.color:`${p.color}30`}}/>
-            })}
-          </div>
-          <div className="flex justify-between text-[9px] text-gray-500">
-            {PROFIL_LABELS.map(l=><span key={l} className={l===profil.label?'font-bold':''}>{ l}</span>)}
-          </div>
-          <p className="text-[11px] text-gray-400 italic">Ce profil peut être ajusté par votre conseiller avec justification.</p>
-        </div>
-      )}
-
-      <button type="button" disabled={nb<7} onClick={onValidate}
-        className="w-full py-4 rounded-2xl bg-[#185FA5] text-white text-[14px] font-semibold hover:bg-[#0C447C] transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_4px_14px_rgba(24,95,165,0.25)]">
-        {nb<7?`Répondre aux ${7-nb} questions restantes`:'Valider mon profil investisseur →'}
-      </button>
-    </div>
-  )
-}
+const MIFID_QUESTIONS = [
+  {
+    id: 'q1', question: 'Votre portefeuille perd 20% en 3 mois. Quelle est votre réaction ?',
+    options: [
+      {label: 'Je vends tout pour sécuriser ce qui reste', pts: 1},
+      {label: "J'attends sans rien faire", pts: 2},
+      {label: "Je renforce mes positions, c'est une opportunité", pts: 3},
+    ]
+  },
+  {
+    id: 'q2', question: "Pour vos investissements, votre horizon de placement est :",
+    options: [
+      {label: 'Moins de 3 ans', pts: 1},
+      {label: 'Entre 3 et 8 ans', pts: 2},
+      {label: 'Plus de 8 ans', pts: 3},
+    ]
+  },
+  {
+    id: 'q3', question: "Votre priorité en matière d'investissement est :",
+    options: [
+      {label: 'Protéger mon capital avant tout', pts: 1},
+      {label: 'Générer des revenus réguliers avec un risque limité', pts: 2},
+      {label: 'Faire croître mon capital sur le long terme', pts: 3},
+    ]
+  },
+  {
+    id: 'q4', question: "Votre expérience en matière d'investissement financier :",
+    options: [
+      {label: 'Nulle ou très limitée', pts: 1},
+      {label: 'Quelques investissements sur des produits simples (livrets, AV)', pts: 2},
+      {label: 'Expérience régulière sur des produits variés (actions, ETF, immo…)', pts: 3},
+    ]
+  },
+  {
+    id: 'q5', question: "Dans les 12 prochains mois, vous pourriez avoir besoin de mobiliser :",
+    options: [
+      {label: "Plus de 50% de votre épargne", pts: 1},
+      {label: "Entre 10% et 50%", pts: 2},
+      {label: "Moins de 10%", pts: 3},
+    ]
+  },
+  {
+    id: 'q6', question: "Une baisse temporaire de 30% de votre portefeuille vous semble :",
+    options: [
+      {label: "Inacceptable — je ne peux pas supporter cette perte", pts: 1},
+      {label: "Difficile mais supportable sur le court terme", pts: 2},
+      {label: "Une opportunité d'achat à saisir", pts: 3},
+    ]
+  },
+  {
+    id: 'q7', question: "En cas de perte totale de cet investissement, l'impact sur votre vie quotidienne serait :",
+    options: [
+      {label: "Catastrophique — cela affecterait gravement mon niveau de vie", pts: 1},
+      {label: "Difficile mais gérable", pts: 2},
+      {label: "Négligeable — cela n'affecterait pas mon niveau de vie", pts: 3},
+    ]
+  },
+]
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Bloc6() {
   const navigate = useNavigate()
+
+  // Récupérer l'objectif depuis Bloc0
+  const bloc0 = loadLS<{objectif?: string}>('patrisim_bloc0', {})
+  const objectifPrincipal = bloc0.objectif || 'bilan'
+
+  const OBJECTIF_LABELS: Record<string, string> = {
+    retraite: 'Préparer ma retraite',
+    bilan: 'Bilan patrimonial complet',
+    fiscalite: 'Optimiser ma fiscalité',
+    succession: 'Préparer ma succession',
+  }
+
+  const [state, setState] = useState<Bloc6State>(() => loadLS('patrisim_bloc6', defaultState()))
   const [savedAt, setSavedAt] = useState('')
   const [errors, setErrors] = useState<string[]>([])
   const [toast, setToast] = useState(false)
+  const [currentQ, setCurrentQ] = useState(0)
 
-  const bloc5 = loadLS<{retraiteP1?:{ageDepartSouhaite?:number;revenusCibles?:number}}>('patrisim_bloc5',{})
-  const bloc4 = loadLS<{fiscal?:{tmi?:number};p1Pro?:{salaire?:string}}>('patrisim_bloc4',{})
-  const tmi = bloc4.fiscal?.tmi||30
-  const plafondPer = Math.min(pn(bloc4.p1Pro?.salaire)*12*0.10,35194)
-  const patrimoineBrut = loadLS<{totalImmo?:number;totalFinancier?:number;totalAutres?:number}>('patrisim_bloc2',{})
-  const patrimoineActuel = (patrimoineBrut.totalImmo||0)+(patrimoineBrut.totalFinancier||0)+(patrimoineBrut.totalAutres||0)
+  const upd = useCallback(<K extends keyof Bloc6State>(k:K, v:Bloc6State[K]) =>
+    setState(s => ({...s, [k]: v})), [])
 
-  const [state, setState] = useState<Bloc6State>(() => {
-    const s = loadLS<Bloc6State>('patrisim_bloc6',{
-      mifidDone:false,
-      reponses:{q1:0,q2:0,q3:0,q4:0,q5:0,q6:0,q7:0},
-      objectifsSelectionnes:[], objectifsOrder:[],
-      objCapitalMontant:'', objCapitalHorizon:15,
-      objRevenusMontant:'', objRevenusQuand:'',
-      objImpotsEconomie:'', objImpotsToleranceBlockage:'',
-      objTransmissionMontant:'', objTransmissionBenef:[], objTransmissionHorizon:'',
-      aConvictions:null,
-      universInvest:[], prefGeo:'', secteursPriv:[], secteursExcl:[], prefESG:'',
-      liquiditePct:20, suiviFrequence:'', modeConseil:'',
-    } as Bloc6State)
-    // Pré-remplir retraite depuis Bloc5
-    if(!s.objCapitalMontant&&bloc5.retraiteP1?.revenusCibles) s.objCapitalMontant=String(bloc5.retraiteP1.revenusCibles*12*25)
-    return s
-  })
+  useEffect(() => {
+    localStorage.setItem('patrisim_bloc6', JSON.stringify(state))
+    setSavedAt(new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}))
+  }, [state])
 
-  const upd = useCallback(<K extends keyof Bloc6State>(k:K,v:Bloc6State[K])=>setState(s=>({...s,[k]:v})),[])
-  useEffect(()=>{localStorage.setItem('patrisim_bloc6',JSON.stringify(state));setSavedAt(new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}))},[state])
+  const score = Object.values(state.reponses).reduce((a,b) => a+b, 0)
+  const profil = getProfilMifid(score)
+  const allAnswered = MIFID_QUESTIONS.every(q => state.reponses[q.id as keyof MifidReponses] > 0)
 
-  // Sync order des objectifs
-  useEffect(()=>{
-    const cur=state.objectifsOrder.filter(o=>state.objectifsSelectionnes.includes(o))
-    const news=state.objectifsSelectionnes.filter(o=>!state.objectifsOrder.includes(o))
-    upd('objectifsOrder',[...cur,...news])
-  },[state.objectifsSelectionnes])
+  const handleReponse = (qId: string, pts: number) => {
+    upd('reponses', {...state.reponses, [qId]: pts})
+    if (currentQ < MIFID_QUESTIONS.length - 1) {
+      setTimeout(() => setCurrentQ(c => c + 1), 300)
+    } else {
+      setTimeout(() => upd('mifidDone', true), 300)
+    }
+  }
 
-  const score=Object.values(state.reponses).reduce((a,b)=>a+b,0)
-  const profil=state.mifidDone?getProfilMifid(score):null
-
-  // Calculs objectifs
-  const montantCible=pn(state.objCapitalMontant)
-  const gap=Math.max(0,montantCible-patrimoineActuel)
-  const effortMensuel=state.objCapitalHorizon>0&&gap>0?Math.round(gap/(((Math.pow(1.04,state.objCapitalHorizon)-1)/(0.04/12)))):0
-  const capitalRente=pn(state.objRevenusMontant)*12/0.04
-
-  const handleSuivant=()=>{
-    const e:string[]=[]
-    if(!state.mifidDone) e.push('Complétez d\'abord le questionnaire MiFID II')
-    if(!state.objectifsSelectionnes.length) e.push('Sélectionnez au moins un objectif patrimonial')
-    if(e.length){setErrors(e);return}
+  const handleSuivant = () => {
+    const e: string[] = []
+    if (!allAnswered) e.push('Répondez aux 7 questions MiFID II')
+    if (e.length > 0) { setErrors(e); return }
     setToast(true)
-    setTimeout(()=>navigate('/bloc7'),1200)
+    setTimeout(() => navigate('/bloc7'), 1200)
   }
 
-  // Si questionnaire MiFID pas encore fait — afficher QCM en pleine page
-  if(!state.mifidDone){
-    return(
-      <div className="min-h-screen bg-[#F8F8F6]">
-        <div className="max-w-3xl mx-auto px-8 py-8 pb-24">
-          <div className="mb-6 flex items-center gap-3">
-            <span className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">Étape 6 sur 7</span>
-            <div className="flex-1 max-w-xs h-1 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-[#185FA5] rounded-full" style={{width:'85%'}}/></div>
-            {savedAt&&<span className="ml-auto text-[11px] text-gray-300 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400"/>Brouillon · {savedAt}</span>}
-          </div>
-          <QuestionnaireMifid
-            reponses={state.reponses}
-            onChange={r=>upd('reponses',r)}
-            onValidate={()=>upd('mifidDone',true)}
-          />
-        </div>
-        <div className="fixed bottom-0 left-[220px] right-0 bg-white/80 backdrop-blur-sm border-t border-gray-100 px-8 py-4 flex justify-between z-30">
-          <button type="button" onClick={()=>navigate('/bloc5')} className="text-[13px] text-gray-400 hover:text-gray-600">← Retour</button>
-        </div>
-      </div>
-    )
-  }
-
-  // Formulaire principal (après MiFID)
-  return(
+  return (
     <div className="min-h-screen bg-[#F8F8F6]">
-      {toast&&<div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl text-[13px] font-medium"><CheckCircle size={16} className="text-green-400"/>Étape 6 enregistrée ✓</div>}
+      {toast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl text-[13px] font-medium">
+          <CheckCircle size={16} className="text-green-400" />Étape 6 enregistrée ✓
+        </div>
+      )}
 
-      <div className="max-w-4xl mx-auto px-8 py-8 pb-40">
-        <div className="mb-8">
+      <div className="max-w-4xl mx-auto px-8 py-8 pb-32">
+
+        {/* En-tête */}
+        <div className="mb-10">
           <div className="flex items-center gap-3 mb-4">
             <span className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">Étape 6 sur 7</span>
-            <div className="flex-1 max-w-xs h-1 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-[#185FA5] rounded-full" style={{width:'85%'}}/></div>
-            {savedAt&&<span className="ml-auto text-[11px] text-gray-300 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400"/>Brouillon · {savedAt}</span>}
+            <div className="flex-1 max-w-xs h-1 bg-gray-200 rounded-full overflow-hidden">
+              <div className="h-full bg-[#185FA5] rounded-full" style={{width:'86%'}} />
+            </div>
+            <span className="text-[11px] text-gray-300">86%</span>
+            {savedAt && <span className="ml-auto text-[11px] text-gray-300 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block"/>Brouillon enregistré · {savedAt}</span>}
           </div>
           <h1 className="text-[26px] font-semibold text-gray-900 tracking-tight">Profil investisseur</h1>
+          <p className="text-[14px] text-gray-400 mt-1.5 max-w-xl">Questionnaire obligatoire dans le cadre réglementaire MiFID II.</p>
         </div>
 
-        {/* Badge profil MiFID */}
-        {profil&&(
-          <div className="mb-6 rounded-2xl p-4 flex items-center justify-between" style={{backgroundColor:profil.bg,borderWidth:2,borderStyle:'solid',borderColor:profil.color}}>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider mb-0.5" style={{color:profil.text}}>Votre profil MiFID II</p>
-              <p className="text-[20px] font-bold" style={{color:profil.color}}>{profil.label} · {score}/21</p>
-            </div>
-            <button type="button" onClick={()=>upd('mifidDone',false)} className="text-[11px] text-gray-400 hover:text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg">
-              Modifier le questionnaire
-            </button>
+        {/* Objectif rappelé depuis Bloc0 */}
+        <div className="bg-[#E6F1FB] border border-[#185FA5]/20 rounded-xl px-5 py-3 mb-8 flex items-center gap-3">
+          <Info size={16} className="text-[#185FA5] flex-shrink-0" />
+          <div>
+            <p className="text-[12px] font-semibold text-[#0C447C]">Votre objectif : {OBJECTIF_LABELS[objectifPrincipal] || objectifPrincipal}</p>
+            <p className="text-[11px] text-[#185FA5] mt-0.5">Défini en début de parcours — les recommandations seront adaptées à cet objectif.</p>
           </div>
-        )}
-
-        {/* ══ OBJECTIFS ══════════════════════════════════════════════════ */}
-        <SectionTitle>Objectifs patrimoniaux</SectionTitle>
-        <p className="text-[13px] text-gray-400 mb-4">Sélectionnez vos objectifs — PatriSim les intégrera dans l'analyse IA.</p>
-
-        <div className="mb-4">
-          <Chips
-            options={['Préparer ma retraite','Atteindre un capital cible','Générer des revenus complémentaires','Réduire mes impôts','Transmettre un patrimoine','Acquérir ma résidence principale','Financer les études de mes enfants','Autre objectif']}
-            value={state.objectifsSelectionnes} onChange={v=>upd('objectifsSelectionnes',v as string[])} multi small
-          />
         </div>
 
-        <div className="space-y-4 mb-6">
-          {state.objectifsSelectionnes.includes('Atteindre un capital cible')&&(
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
-              <p className="text-[13px] font-semibold text-gray-800">Atteindre un capital cible</p>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Montant cible"><Input value={state.objCapitalMontant} onChange={v=>upd('objCapitalMontant',v)} placeholder="250 000" suffix="€"/></Field>
-                <Field label="Horizon">
-                  <div className="space-y-1">
-                    <div className="flex justify-between mb-1"><span className="text-[12px] text-gray-500">Horizon</span><span className="text-[12px] font-bold text-[#185FA5]">{state.objCapitalHorizon} ans</span></div>
-                    <input type="range" min={1} max={30} value={state.objCapitalHorizon} onChange={e=>upd('objCapitalHorizon',Number(e.target.value))} className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#185FA5]"/>
+        {/* ══ MiFID II ══════════════════════════════════════════════════════ */}
+        <SectionTitle>Questionnaire MiFID II — Profil de risque</SectionTitle>
+        <InfoCard color="blue">
+          Ce questionnaire est conforme aux exigences MiFID II. Vos réponses déterminent votre profil investisseur officiel.
+        </InfoCard>
+
+        <div className="mt-6 space-y-4">
+          {!state.mifidDone ? (
+            // Mode questionnaire progressif
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] text-gray-400 uppercase tracking-wider">Question {currentQ + 1} / {MIFID_QUESTIONS.length}</span>
+                <div className="flex gap-1">
+                  {MIFID_QUESTIONS.map((_, i) => (
+                    <div key={i} className={`w-6 h-1.5 rounded-full transition-all ${
+                      state.reponses[MIFID_QUESTIONS[i].id as keyof MifidReponses] > 0 ? 'bg-[#185FA5]' : i === currentQ ? 'bg-[#185FA5]/40' : 'bg-gray-200'
+                    }`} />
+                  ))}
+                </div>
+              </div>
+
+              <p className="text-[16px] font-semibold text-gray-800 leading-relaxed">
+                {MIFID_QUESTIONS[currentQ].question}
+              </p>
+
+              <div className="space-y-3">
+                {MIFID_QUESTIONS[currentQ].options.map((opt, i) => {
+                  const qId = MIFID_QUESTIONS[currentQ].id as keyof MifidReponses
+                  const selected = state.reponses[qId] === opt.pts
+                  return (
+                    <button key={i} type="button"
+                      onClick={() => handleReponse(MIFID_QUESTIONS[currentQ].id, opt.pts)}
+                      className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-all text-[13px] font-medium ${
+                        selected ? 'border-[#185FA5] bg-[#E6F1FB] text-[#0C447C]' : 'border-gray-100 bg-gray-50 text-gray-700 hover:border-gray-200 hover:bg-white'
+                      }`}>
+                      <span className="mr-3 text-gray-300 font-bold">{String.fromCharCode(65+i)}.</span>
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Navigation questions */}
+              <div className="flex justify-between items-center pt-2">
+                <button type="button" onClick={() => setCurrentQ(c => Math.max(0, c-1))}
+                  disabled={currentQ === 0}
+                  className="text-[12px] text-gray-400 hover:text-gray-600 disabled:opacity-30">
+                  ← Précédente
+                </button>
+                {allAnswered && (
+                  <button type="button" onClick={() => upd('mifidDone', true)}
+                    className="text-[12px] text-[#185FA5] font-semibold hover:text-[#0C447C]">
+                    Voir mon profil →
+                  </button>
+                )}
+                {currentQ < MIFID_QUESTIONS.length - 1 && (
+                  <button type="button"
+                    onClick={() => setCurrentQ(c => c+1)}
+                    disabled={state.reponses[MIFID_QUESTIONS[currentQ].id as keyof MifidReponses] === 0}
+                    className="text-[12px] text-[#185FA5] font-semibold hover:text-[#0C447C] disabled:opacity-30">
+                    Suivante →
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            // Résultat profil
+            <div className="space-y-4">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Votre profil MiFID II</p>
+                    <p className="text-[24px] font-bold" style={{color: profil.color}}>{profil.label}</p>
+                    <p className="text-[13px] text-gray-400 mt-1">Score : {score} / 21</p>
+                  </div>
+                  <div className="flex gap-1 items-end">
+                    {['Défensif','Équilibré','Dynamique','Offensif'].map((p, i) => (
+                      <div key={p} className="flex flex-col items-center gap-1">
+                        <div className={`w-8 rounded-t-lg transition-all ${profil.label === p ? 'opacity-100' : 'opacity-30'}`}
+                          style={{height: `${(i+1)*16}px`, backgroundColor: profil.label === p ? profil.color : '#E5E7EB'}} />
+                        <span className="text-[8px] text-gray-400">{p[0]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-xl px-4 py-3 text-[12px]" style={{backgroundColor: profil.bg, color: profil.text}}>
+                  {profil.label === 'Défensif' && 'Vous privilégiez la sécurité et la préservation du capital. Placements adaptés : fonds euros, livrets réglementés, obligations court terme.'}
+                  {profil.label === 'Équilibré' && 'Vous acceptez une part de risque modérée pour un meilleur rendement. Placements adaptés : assurance-vie mixte, fonds diversifiés, SCPI de rendement.'}
+                  {profil.label === 'Dynamique' && 'Vous recherchez la performance sur le long terme et acceptez la volatilité. Placements adaptés : actions, ETF, PEA, SCPI.'}
+                  {profil.label === 'Offensif' && 'Vous acceptez une volatilité élevée pour maximiser le rendement. Placements adaptés : actions individuelles, ETF sectoriels, private equity.'}
+                </div>
+                <button type="button" onClick={() => { upd('mifidDone', false); setCurrentQ(0) }}
+                  className="text-[12px] text-gray-400 hover:text-gray-600 mt-3 underline">
+                  Refaire le questionnaire
+                </button>
+              </div>
+
+              {/* ══ CONVICTIONS ══════════════════════════════════════════════ */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+                <SectionTitle>Convictions & préférences d'investissement</SectionTitle>
+
+                <div className="space-y-2">
+                  <p className="text-[12px] text-gray-500 font-medium">Avez-vous des convictions sur vos placements ?</p>
+                  <div className="flex gap-2">
+                    {['Oui','Non'].map(l => (
+                      <button key={l} type="button" onClick={() => upd('aConvictions', l === 'Oui')}
+                        className={`px-4 py-2 rounded-lg text-[13px] border transition-all ${state.aConvictions === (l === 'Oui') ? 'bg-[#185FA5] border-[#185FA5] text-white' : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'}`}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {state.aConvictions && (
+                  <div className="space-y-4 pt-2">
+                    <Field label="Univers d'investissement souhaités">
+                      <Chips multi small
+                        options={['Immobilier physique','SCPI / OPCI','PEA','ETF / Fonds indiciels','Assurance-vie','PER','Obligations','Or et métaux précieux','Cryptomonnaies','ISR / ESG']}
+                        value={state.universInvest}
+                        onChange={v => upd('universInvest', v as string[])}
+                      />
+                    </Field>
+
+                    <Field label="Préférence géographique">
+                      <Chips small
+                        options={['France uniquement','Europe','Monde entier','Marchés émergents inclus']}
+                        value={state.prefGeo}
+                        onChange={v => upd('prefGeo', v as string)}
+                      />
+                    </Field>
+
+                    <Field label="Préférence ESG / ISR">
+                      <Chips small
+                        options={['Pas de préférence','Critères ESG importants','ESG prioritaire','Impact investing uniquement']}
+                        value={state.prefESG}
+                        onChange={v => upd('prefESG', v as string)}
+                      />
+                    </Field>
+
+                    <Field label="Secteurs à exclure (optionnel)">
+                      <Chips multi small
+                        options={['Armement','Tabac','Alcool','Jeux d\'argent','Énergies fossiles']}
+                        value={state.secteursExcl}
+                        onChange={v => upd('secteursExcl', v as string[])}
+                      />
+                    </Field>
+                  </div>
+                )}
+              </div>
+
+              {/* ══ SUIVI ═════════════════════════════════════════════════════ */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+                <SectionTitle>Suivi & mode de conseil</SectionTitle>
+
+                <Field label="Liquidité souhaitée" tooltip="Part de votre patrimoine que vous souhaitez pouvoir mobiliser rapidement">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[12px]">
+                      <span className="text-gray-500">Part disponible</span>
+                      <span className="font-bold text-[#185FA5]">{state.liquiditePct}%</span>
+                    </div>
+                    <input type="range" min={0} max={100} step={5} value={state.liquiditePct}
+                      onChange={e => upd('liquiditePct', Number(e.target.value))}
+                      className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#185FA5]" />
                   </div>
                 </Field>
+
+                <Field label="Fréquence de suivi souhaitée">
+                  <Chips small
+                    options={['Mensuelle','Trimestrielle','Semestrielle','Annuelle']}
+                    value={state.suiviFrequence}
+                    onChange={v => upd('suiviFrequence', v as string)}
+                  />
+                </Field>
+
+                <Field label="Mode de conseil préféré">
+                  <Chips small
+                    options={['Autonome (je décide seul)','Guidé (conseils puis je décide)','Délégué (je fais confiance au conseiller)']}
+                    value={state.modeConseil}
+                    onChange={v => upd('modeConseil', v as string)}
+                  />
+                </Field>
               </div>
-              {montantCible>0&&<InfoCard color="blue">Patrimoine actuel : <strong>{fmt(patrimoineActuel)} €</strong> · Manque : <strong>{fmt(gap)} €</strong> · Effort mensuel estimé : <strong>{fmt(effortMensuel)} €/mois</strong> (4%/an)</InfoCard>}
-            </div>
-          )}
 
-          {state.objectifsSelectionnes.includes('Générer des revenus complémentaires')&&(
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
-              <p className="text-[13px] font-semibold text-gray-800">Générer des revenus complémentaires</p>
-              <Field label="Montant souhaité"><Input value={state.objRevenusMontant} onChange={v=>upd('objRevenusMontant',v)} placeholder="500" suffix="€/mois"/></Field>
-              <Field label="À partir de quand">
-                <Chips options={['Maintenant','Dans 3 ans','Dans 5 ans','À la retraite']} value={state.objRevenusQuand} onChange={v=>upd('objRevenusQuand',v as string)} small/>
-              </Field>
-              {pn(state.objRevenusMontant)>0&&<InfoCard color="blue">Capital nécessaire pour générer <strong>{state.objRevenusMontant} €/mois</strong> en rente : <strong>{fmt(capitalRente)} €</strong> (4%/an)</InfoCard>}
-            </div>
-          )}
-
-          {state.objectifsSelectionnes.includes('Réduire mes impôts')&&(
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
-              <p className="text-[13px] font-semibold text-gray-800">Réduire mes impôts</p>
-              {tmi>=30&&plafondPer>0&&<InfoCard color="amber">Avec votre TMI à <strong>{tmi}%</strong>, un versement PER de <strong>{fmt(plafondPer)} €</strong> vous économise <strong>{fmt(Math.round(plafondPer*tmi/100))} €/an</strong>.</InfoCard>}
-              <Field label="Économie annuelle souhaitée"><Input value={state.objImpotsEconomie} onChange={v=>upd('objImpotsEconomie',v)} placeholder="2 000" suffix="€/an"/></Field>
-              <Field label="Tolérance blocage des fonds">
-                <Chips options={['Court terme acceptable','Long terme uniquement','Peu importe']} value={state.objImpotsToleranceBlockage} onChange={v=>upd('objImpotsToleranceBlockage',v as string)} small/>
-              </Field>
-            </div>
-          )}
-
-          {state.objectifsSelectionnes.includes('Transmettre un patrimoine')&&(
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
-              <p className="text-[13px] font-semibold text-gray-800">Transmettre un patrimoine</p>
-              <Field label="Montant cible à transmettre"><Input value={state.objTransmissionMontant} onChange={v=>upd('objTransmissionMontant',v)} placeholder="200 000" suffix="€"/></Field>
-              <Field label="À qui">
-                <Chips options={['Enfants','Conjoint','Petits-enfants','Association','Mixte']} value={state.objTransmissionBenef} onChange={v=>upd('objTransmissionBenef',v as string[])} multi small/>
-              </Field>
-              <Field label="Horizon">
-                <Chips options={['De mon vivant','À mon décès','Les deux']} value={state.objTransmissionHorizon} onChange={v=>upd('objTransmissionHorizon',v as string)} small/>
-              </Field>
+              {/* Synthèse */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <p className="text-[13px] font-semibold text-gray-800 mb-3">Récapitulatif</p>
+                <div className="grid grid-cols-2 gap-3 text-[12px]">
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-gray-400 mb-1">Profil MiFID II</p>
+                    <p className="font-bold" style={{color: profil.color}}>{profil.label}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-gray-400 mb-1">Objectif principal</p>
+                    <p className="font-semibold text-gray-700">{OBJECTIF_LABELS[objectifPrincipal] || objectifPrincipal}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-gray-400 mb-1">Liquidité souhaitée</p>
+                    <p className="font-semibold text-gray-700">{state.liquiditePct}%</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-gray-400 mb-1">Mode de conseil</p>
+                    <p className="font-semibold text-gray-700">{state.modeConseil || '—'}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Priorisation */}
-        {state.objectifsOrder.length>1&&(
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4 mb-8">
-            <p className="text-[13px] font-semibold text-gray-800">Classez vos objectifs par ordre de priorité</p>
-            <p className="text-[12px] text-gray-400">Faites glisser pour réorganiser — l'objectif n°1 guidera l'analyse IA</p>
-            <PriorityList items={state.objectifsOrder} onChange={items=>upd('objectifsOrder',items)}/>
+        {errors.length > 0 && (
+          <div className="mt-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3 space-y-1">
+            {errors.map(e => <p key={e} className="text-[12px] text-red-600">⚠ {e}</p>)}
           </div>
         )}
-
-        {/* ══ CONVICTIONS — question préalable ════════════════════════════ */}
-        <SectionTitle>Convictions & préférences d'investissement</SectionTitle>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4 mb-6">
-          <Field label="Avez-vous des convictions particulières sur vos investissements ?">
-            <div className="flex gap-3">
-              {[{l:'Oui, j\'ai des préférences précises',v:true},{l:'Non / Je ne sais pas encore',v:false}].map(opt=>(
-                <button key={String(opt.v)} type="button" onClick={()=>upd('aConvictions',opt.v)}
-                  className={`flex-1 py-3 px-4 rounded-xl border-2 text-[13px] text-left transition-all ${state.aConvictions===opt.v?'border-[#185FA5] bg-[#E6F1FB] text-[#0C447C] font-semibold':'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'}`}>
-                  {opt.l}
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          {state.aConvictions===false&&(
-            <InfoCard color="blue">Pas de problème — l'analyse IA s'appuiera sur votre profil MiFID II (<strong>{profil?.label}</strong>) pour formuler des recommandations adaptées.</InfoCard>
-          )}
-
-          {state.aConvictions===true&&(
-            <div className="space-y-5 pt-2 border-t border-gray-100">
-              <Field label="Types de placements qui vous intéressent">
-                <Chips options={['Immobilier physique','SCPI / OPCI','Bourse — actions','ETF / Fonds indiciels','Obligations','Assurance-vie','PER','Private equity','Or et métaux précieux','Cryptomonnaies','ISR / ESG / Impact investing']}
-                  value={state.universInvest} onChange={v=>upd('universInvest',v as string[])} multi small/>
-              </Field>
-              <Field label="Préférence géographique">
-                <Chips options={['France uniquement','Europe','Monde entier','Marchés émergents inclus']} value={state.prefGeo} onChange={v=>upd('prefGeo',v as string)} small/>
-              </Field>
-              <Field label="Secteurs à exclure (optionnel)">
-                <Chips options={['Armement','Tabac','Alcool',"Jeux d'argent",'Énergies fossiles']} value={state.secteursExcl} onChange={v=>upd('secteursExcl',v as string[])} multi small/>
-              </Field>
-              <Field label="Approche ESG / Investissement responsable">
-                <Chips options={['Pas de préférence','Critères ESG importants','ESG prioritaire','Impact investing uniquement']} value={state.prefESG} onChange={v=>upd('prefESG',v as string)} small/>
-              </Field>
-            </div>
-          )}
-        </div>
-
-        {/* ══ SUIVI ═══════════════════════════════════════════════════════ */}
-        <SectionTitle>Suivi & accompagnement</SectionTitle>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4 mb-6">
-          <div className="space-y-2">
-            <Field label="Quelle part de votre patrimoine souhaitez-vous pouvoir mobiliser rapidement ?">
-              <div className="space-y-2">
-                <div className="flex justify-between mb-1"><span className="text-[12px] text-gray-500">Liquidité souhaitée</span><span className="text-[12px] font-bold text-[#185FA5]">{state.liquiditePct}%{patrimoineActuel>0?` (≈ ${fmt(Math.round(patrimoineActuel*state.liquiditePct/100))} €)`:''}</span></div>
-                <input type="range" min={0} max={100} step={5} value={state.liquiditePct} onChange={e=>upd('liquiditePct',Number(e.target.value))} className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#185FA5]"/>
-              </div>
-            </Field>
-          </div>
-          <Field label="Fréquence de suivi souhaitée">
-            <Chips options={['Mensuelle','Trimestrielle','Semestrielle','Annuelle']} value={state.suiviFrequence} onChange={v=>upd('suiviFrequence',v as string)} small/>
-          </Field>
-          <Field label="Mode de conseil préféré">
-            <Chips options={['Autonome (je décide seul)','Guidé (conseils puis je décide)','Délégué (je fais confiance au conseiller)']} value={state.modeConseil} onChange={v=>upd('modeConseil',v as string)} small/>
-          </Field>
-        </div>
-
-        {/* Erreurs */}
-        {errors.length>0&&<div className="mb-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3 space-y-1">{errors.map(e=><p key={e} className="text-[12px] text-red-600">⚠ {e}</p>)}</div>}
       </div>
 
-      <SyntheseButton
-        onSuivant={handleSuivant}
-        onRetour={()=>navigate('/bloc5')}
-        labelSuivant="Suivant — Succession & transmission →"
-        savedAt={savedAt}
-        errors={errors}
-        items={[
-          ...(profil?[{label:'Profil MiFID II',value:profil.label,color:`text-[${profil.color}]`}]:[]),
-          {label:'Objectifs sélectionnés',value:`${state.objectifsSelectionnes.length}`},
-          {label:'Objectif principal',value:state.objectifsOrder[0]||'—'},
-          {label:'Liquidité souhaitée',value:`${state.liquiditePct}%`},
-        ]}
-      />
+      {/* Footer */}
+      <div className="fixed bottom-0 left-[220px] right-0 bg-white/80 backdrop-blur-sm border-t border-gray-100 px-8 py-4 flex justify-between items-center z-30">
+        <button type="button" onClick={() => navigate('/bloc5')} className="text-[13px] text-gray-400 hover:text-gray-600">← Retour</button>
+        <div className="flex items-center gap-3">
+          {savedAt && <span className="text-[11px] text-gray-300 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block"/>Brouillon enregistré · {savedAt}</span>}
+          <button type="button" onClick={handleSuivant}
+            className="text-[13px] text-white px-6 py-2 rounded-lg bg-[#185FA5] hover:bg-[#0C447C] transition-colors shadow-[0_2px_8px_rgba(24,95,165,0.3)] font-medium">
+            Suivant →
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

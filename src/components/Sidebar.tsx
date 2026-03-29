@@ -1,27 +1,22 @@
-// src/components/Sidebar.tsx
+import { useNavigate } from 'react-router-dom'
+import { CheckCircle, Lock } from 'lucide-react'
 
-import { useNavigate, useLocation } from 'react-router-dom'
-import { CheckCircle } from 'lucide-react'
+interface SidebarProps { currentStep: number }
 
-interface SidebarProps {
-  currentStep: number
-}
-
-// Blocs requis selon Bloc0
 function getBlocsActifs(): number[] {
   try {
     const raw = localStorage.getItem('patrisim_bloc0')
     if (!raw) return [1,2,3,4,5,6,7]
-    const { objectifs = [], niveauDetail = 'complet' } = JSON.parse(raw)
-    if (!objectifs.length || objectifs.includes('bilan')) return [1,2,3,4,5,6,7]
+    const { objectif, niveauDetail = 'complet' } = JSON.parse(raw)
+    if (!objectif || objectif === 'bilan') return [1,2,3,4,5,6,7]
     const blocs = new Set<number>([1])
-    if (objectifs.includes('retraite'))      { blocs.add(4); blocs.add(5) }
-    if (objectifs.includes('fiscalite'))     { blocs.add(2); blocs.add(3); blocs.add(4) }
-    if (objectifs.includes('succession'))    { blocs.add(2); blocs.add(7) }
-    if (objectifs.includes('investissement')){ blocs.add(2); blocs.add(6) }
-    if (objectifs.includes('immobilier'))    { blocs.add(2); blocs.add(3) }
-    if (objectifs.includes('protection'))    { blocs.add(4) }
-    if (objectifs.includes('objectif'))      { blocs.add(4); blocs.add(5); blocs.add(6) }
+    if (objectif === 'retraite')    { blocs.add(4); blocs.add(5) }
+    if (objectif === 'fiscalite')   { blocs.add(2); blocs.add(3); blocs.add(4) }
+    if (objectif === 'succession')  { blocs.add(2); blocs.add(7) }
+    if (objectif === 'investissement') { blocs.add(2); blocs.add(6) }
+    if (objectif === 'immobilier')  { blocs.add(2); blocs.add(3) }
+    if (objectif === 'protection')  { blocs.add(1); blocs.add(4) }
+    if (objectif === 'objectif')    { blocs.add(4); blocs.add(5); blocs.add(6) }
     if (niveauDetail === 'complet') {
       if (blocs.has(4)) blocs.add(3)
       if (blocs.has(5)) blocs.add(4)
@@ -45,7 +40,6 @@ export default function Sidebar({ currentStep }: SidebarProps) {
   const navigate = useNavigate()
   const blocsActifs = getBlocsActifs()
 
-  // Blocs complétés = tous ceux < currentStep et actifs
   const isDone = (n: number) => n < currentStep && blocsActifs.includes(n)
   const isActive = (n: number) => n === currentStep
   const isDisabled = (n: number) => !blocsActifs.includes(n)
@@ -54,11 +48,8 @@ export default function Sidebar({ currentStep }: SidebarProps) {
     <div className="w-[220px] bg-white border-r border-gray-100 flex flex-col fixed top-0 left-0 h-full z-40">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-gray-50">
-        <button
-          type="button"
-          onClick={() => navigate('/start')}
-          className="text-[20px] font-bold text-gray-900 hover:opacity-80 transition-opacity"
-        >
+        <button type="button" onClick={() => navigate('/start')}
+          className="text-[20px] font-bold text-gray-900 hover:opacity-80 transition-opacity">
           Patri<span className="text-[#185FA5]">Sim</span>
         </button>
         <p className="text-[10px] text-gray-400 mt-0.5">Simulation patrimoniale</p>
@@ -72,40 +63,35 @@ export default function Sidebar({ currentStep }: SidebarProps) {
           const disabled = isDisabled(n)
 
           return (
-            <button
-              key={n}
-              type="button"
+            <button key={n} type="button"
               disabled={disabled}
               onClick={() => !disabled && navigate(path)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
-                active
-                  ? 'bg-[#E6F1FB] text-[#0C447C]'
-                  : done
-                  ? 'text-gray-500 hover:bg-gray-50 cursor-pointer'
-                  : disabled
-                  ? 'text-gray-300 cursor-not-allowed opacity-40'
-                  : 'text-gray-400 hover:bg-gray-50 cursor-pointer'
+                active   ? 'bg-[#E6F1FB] text-[#0C447C]'
+                : done   ? 'text-gray-500 hover:bg-gray-50 cursor-pointer'
+                : disabled ? 'text-gray-300 cursor-not-allowed'
+                : 'text-gray-400 hover:bg-gray-50 cursor-pointer'
               }`}
             >
-              {/* Indicateur */}
               <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${
-                done
-                  ? 'bg-[#0F6E56] text-white'
-                  : active
-                  ? 'bg-[#185FA5] text-white'
-                  : disabled
-                  ? 'bg-gray-100 text-gray-300'
-                  : 'bg-gray-100 text-gray-400'
+                done    ? 'bg-[#0F6E56] text-white'
+                : active  ? 'bg-[#185FA5] text-white'
+                : disabled ? 'bg-gray-100 text-gray-300'
+                : 'bg-gray-100 text-gray-400'
               }`}>
-                {done ? <CheckCircle size={13} /> : n}
+                {done ? <CheckCircle size={13} /> : disabled ? <Lock size={10} /> : n}
               </div>
 
-              <span className={`text-[12px] font-medium ${active ? 'text-[#0C447C]' : ''}`}>
+              <span className={`text-[12px] font-medium flex-1 ${
+                active ? 'text-[#0C447C]' : disabled ? 'text-gray-300' : ''
+              }`}>
                 {label}
               </span>
 
               {disabled && (
-                <span className="ml-auto text-[9px] text-gray-300">—</span>
+                <span className="text-[9px] text-gray-200 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                  non requis
+                </span>
               )}
             </button>
           )
