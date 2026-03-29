@@ -14,10 +14,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { model, max_tokens, system, messages } = req.body
 
-    const cleanBody = {
+    const body = {
       model: model || 'claude-haiku-4-5',
-      max_tokens: max_tokens || 4000,
-      system,
+      max_tokens: max_tokens || 2000,
+      ...(system && { system }),
       messages,
     }
 
@@ -28,14 +28,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify(cleanBody),
+      body: JSON.stringify(body),
     })
 
     const data = await response.json()
-    console.log('Anthropic error:', JSON.stringify(data))
-    return res.status(response.status).json(data)
+
+    if (!response.ok) {
+      console.error('Anthropic error:', JSON.stringify(data))
+      return res.status(response.status).json(data)
+    }
+
+    return res.status(200).json(data)
 
   } catch (error) {
+    console.error('Proxy error:', error)
     return res.status(500).json({ error: 'Erreur proxy', detail: String(error) })
   }
 }
