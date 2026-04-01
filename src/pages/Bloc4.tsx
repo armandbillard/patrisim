@@ -611,8 +611,9 @@ export default function Bloc4() {
           {label:'Revenus nets', value:`${fmt(revenusTotaux)} €/mois`, color:'text-[#185FA5]'},
           {label:'Charges totales', value:`${fmt(totalDepenses)} €/mois`},
           {label:'Capacité d\'épargne', value:`${capacite>=0?'+':''}${fmt(capacite)} €/mois`, color:capacite>500?'text-[#0F6E56]':capacite>=0?'text-amber-600':'text-red-600'},
+          {label:"Taux d'épargne", value:revenusTotaux>0?`${Math.round(Math.max(0,capacite)/revenusTotaux*100)}%`:'—', color:'text-gray-600'},
           ...(rfr>0?[{label:'TMI', value:`${tmi}%`},{label:'Taux moyen', value:`${tauxMoyen}%`}]:[]),
-          ...(state.dcas.length>0?[{label:'DCA actifs', value:`${state.dcas.length} × ${fmt(state.dcas.reduce((a,d)=>a+pn(d.montantMensuel),0))} €/mois`}]:[]),
+          ...(state.dcas.length>0?[{label:'Investissement mensuel', value:`${fmt(state.dcas.reduce((a,d)=>a+pn(d.montantMensuel),0))} €/mois`, color:'text-[#0F6E56]'}]:[]),
         ]}
       />
     </div>

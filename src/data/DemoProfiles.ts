@@ -146,7 +146,7 @@ export const DEMO_PROFILES: DemoProfile[] = [
         pacteDutreil: { aPacte: false },
         aSuccessionAttendue: false, successionsAttendues: [],
       },
-      patrisim_bloc0: { objectifs: ['retraite', 'succession'], niveauDetail: 'complet', done: true },
+      patrisim_bloc0: { objectif: 'retraite', niveauDetail: 'complet', done: true, _demoProfileId: 'couple-50' },
     }
   },
 
@@ -246,7 +246,7 @@ export const DEMO_PROFILES: DemoProfile[] = [
         pacteDutreil: { aPacte: false },
         aSuccessionAttendue: false, successionsAttendues: [],
       },
-      patrisim_bloc0: { objectifs: ['objectif', 'fiscalite'], niveauDetail: 'complet', done: true },
+      patrisim_bloc0: { objectif: 'objectif', niveauDetail: 'complet', done: true, _demoProfileId: 'single-35' },
     }
   },
 
@@ -371,7 +371,7 @@ export const DEMO_PROFILES: DemoProfile[] = [
         pacteDutreil: { aPacte: false },
         aSuccessionAttendue: false, successionsAttendues: [],
       },
-      patrisim_bloc0: { objectifs: ['succession', 'bilan'], niveauDetail: 'complet', done: true },
+      patrisim_bloc0: { objectif: 'succession', niveauDetail: 'complet', done: true, _demoProfileId: 'retiree-65' },
     }
   },
 
@@ -397,23 +397,23 @@ export const DEMO_PROFILES: DemoProfile[] = [
       patrisim_bloc1_cf1: { niveauGeneral: 'Confirmé', produits: ['PEA', 'Assurance-vie', 'PER', 'Actions & obligations', 'Immobilier locatif'] },
       patrisim_bloc2: {
         proprietaireRP: true,
-        rp: { typeBien: 'Maison ancienne', ville: 'Nantes', codePostal: '44000', valeurEstimee: '550000', prixAchat: '380000', anneeAchat: '2015', modeDetention: 'Pleine propriété', natureJuridique: 'Bien commun' },
+        rp: { typeBien: 'Maison ancienne', ville: 'Nantes', codePostal: '44000', valeurEstimee: '320000', prixAchat: '240000', anneeAchat: '2015', modeDetention: 'Pleine propriété', natureJuridique: 'Bien commun' },
         biens: [{
           typeBien: 'Appartement ancien', ville: 'Nantes', codePostal: '44000',
-          valeurEstimee: '220000', prixAchat: '180000', anneeAchat: '2019',
+          valeurEstimee: '140000', prixAchat: '130000', anneeAchat: '2019',
           modeDetention: 'Pleine propriété', natureJuridique: 'Bien propre P1',
           loue: true,
-          location: { loyerMensuel: '950', tauxOccupation: '100', chargesAnnuelles: '1500', regimeFiscal: 'Régime réel' },
+          location: { loyerMensuel: '700', tauxOccupation: '100', chargesAnnuelles: '1500', regimeFiscal: 'Régime réel' },
         }],
         livrets: [{ type: 'Livret A', taux: '1.5', solde: '22950', titulaire: 'P1' }],
-        peas: [{ valeur: '65000', versements: '50000', dateOuverture: '2015-01-01', composition: ['ETF', 'Actions françaises', 'Actions européennes'] }],
-        avs: [{ nom: 'AV Luxembourg', compagnie: 'Generali', dateOuverture: '2016-03-01', valeurRachat: '145000', versements: '110000', fondsEurosPct: 30, rendement: '5.2', clauseBeneficiaire: 'Standard' }],
-        pers: [{ type: 'PER individuel', valeur: '85000', versementsVolontaires: '70000', modeSortie: 'Capital' }],
-        comptesCourants: [{ etablissement: 'CIC', solde: '25000', titulaire: 'P1' }],
-        partsSociales: [{ nomSociete: 'Petit Consulting SAS', formeJuridique: 'SAS', pctDetenu: '100', valeur: '350000' }],
-        totalImmo: 770000,
-        totalFinancier: 342950,
-        totalAutres: 350000,
+        peas: [{ valeur: '35000', versements: '28000', dateOuverture: '2015-01-01', composition: ['ETF', 'Actions françaises', 'Actions européennes'] }],
+        avs: [{ nom: 'AV Luxembourg', compagnie: 'Generali', dateOuverture: '2016-03-01', valeurRachat: '80000', versements: '65000', fondsEurosPct: 30, rendement: '5.2', clauseBeneficiaire: 'Standard' }],
+        pers: [{ type: 'PER individuel', valeur: '42000', versementsVolontaires: '35000', modeSortie: 'Capital' }],
+        comptesCourants: [{ etablissement: 'CIC', solde: '18000', titulaire: 'P1' }],
+        partsSociales: [{ nomSociete: 'Petit Consulting SAS', formeJuridique: 'SAS', pctDetenu: '100', valeur: '180000' }],
+        totalImmo: 460000,
+        totalFinancier: 175950,
+        totalAutres: 180000,
       },
       patrisim_bloc3: {
         aCredits: true,
@@ -421,35 +421,35 @@ export const DEMO_PROFILES: DemoProfile[] = [
           {
             bienFinance: 'Résidence principale Nantes',
             etablissement: 'CIC', typePret: 'Prêt amortissable classique',
-            taux: '1.8', typeTaux: 'Fixe', montantInitial: '300000', crd: '185000',
-            mensualiteHA: '1580', mensualiteAssurance: '120',
+            taux: '1.8', typeTaux: 'Fixe', montantInitial: '180000', crd: '120000',
+            mensualiteHA: '980', mensualiteAssurance: '120',
             dateDebut: '2015-06-01', dureeInitiale: '20', garantie: 'Hypothèque',
           },
           {
             bienFinance: 'Appartement locatif Nantes',
             etablissement: 'CIC', typePret: 'Prêt amortissable classique',
-            taux: '2.1', typeTaux: 'Fixe', montantInitial: '150000', crd: '98000',
-            mensualiteHA: '850', mensualiteAssurance: '65',
+            taux: '2.1', typeTaux: 'Fixe', montantInitial: '110000', crd: '72000',
+            mensualiteHA: '620', mensualiteAssurance: '65',
             dateDebut: '2019-03-01', dureeInitiale: '20', garantie: 'Hypothèque',
           },
         ],
         creditsConso: [],
       },
       patrisim_bloc4: {
-        p1Pro: { remunNette: '96000', dividendesSociete: '24000', cotisationsSociales: '18000' },
+        p1Pro: { remunNette: '55000', dividendesSociete: '12000', cotisationsSociales: '12000' },
         revenusFonciersB: '11400',
-        revenusFinanciers: '17834',
-        mensualitesCredits: '2615',
+        revenusFinanciers: '7600',
+        mensualitesCredits: '1615',
         assurances: '450',
         abonnements: '200',
         fiscal: {
           anneeRevenus: '2024',
-          rfr: '118000',
-          revenuImposable: '105000',
-          impotNet: '28500',
+          rfr: '68000',
+          revenuImposable: '60000',
+          impotNet: '9800',
           nbParts: '3',
           prelevementsSociaux: '3200',
-          tmi: 41,
+          tmi: 30,
           source: 'manuel',
         },
         depenses: [
@@ -508,7 +508,7 @@ export const DEMO_PROFILES: DemoProfile[] = [
         pacteDutreil: { aPacte: false },
         aSuccessionAttendue: false, successionsAttendues: [],
       },
-      patrisim_bloc0: { objectifs: ['fiscalite', 'retraite'], niveauDetail: 'complet', done: true },
+      patrisim_bloc0: { objectif: 'fiscalite', niveauDetail: 'complet', done: true, _demoProfileId: 'self-employed-42' },
     }
   },
 ]
@@ -529,5 +529,22 @@ export function loadDemoProfile(profileId: string): boolean {
     localStorage.setItem(key, JSON.stringify(value))
   })
 
+  // Vider le cache d'analyse pour forcer une nouvelle analyse IA
+  localStorage.removeItem('patrisim_analyse')
+
+  return true
+}
+
+// Pré-charge un résultat IA en cache pour éviter un appel API
+// Utile pour les démos sans consommer de crédits
+export function loadDemoProfileWithCache(profileId: string, cachedResult: unknown): boolean {
+  const ok = loadDemoProfile(profileId)
+  if (!ok) return false
+  if (cachedResult) {
+    localStorage.setItem('patrisim_analyse', JSON.stringify({
+      data: cachedResult,
+      ts: Date.now(),
+    }))
+  }
   return true
 }

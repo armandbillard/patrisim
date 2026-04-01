@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle, AlertTriangle, Info, BarChart2, TrendingUp, PieChart, DollarSign, Users, Settings } from 'lucide-react'
+import { CheckCircle, AlertTriangle, Info, BarChart2, TrendingUp, PieChart, DollarSign, Users, Settings, Mail, GraduationCap } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,7 +18,6 @@ interface AIResult {
   plan_action: { etape: number; action: string; delai: string; impact: string; priorite: string }[]
   recommandations: { titre: string; description: string; urgence: string; gain_estime: number }[]
   alertes: { niveau: string; message: string; action: string }[]
-  disclaimer: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -34,158 +33,152 @@ function loadLS<T extends object>(key: string, fallback: T): T {
 const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })
 const parseNum = (s: unknown) => { const n = parseFloat(String(s).replace(/\s/g, '').replace(',', '.')); return isNaN(n) ? 0 : n }
 
-// ─── Compression des données ──────────────────────────────────────────────────
+// ─── Calculs pré-IA ──────────────────────────────────────────────────────────
 
-function buildCompressedData() {
-  const mode = loadLS<{ v?: string }>('patrisim_bloc1_mode', {}).v || 'seul'
-  const p1 = loadLS<Record<string, unknown>>('patrisim_bloc1_p1', {})
-  const p2 = loadLS<Record<string, unknown>>('patrisim_bloc1_p2', {})
-  const foyer = loadLS<Record<string, unknown>>('patrisim_bloc1_foyer', {})
-  const pro1 = loadLS<Record<string, unknown>>('patrisim_bloc1_pro1', {})
-  const pro2 = loadLS<Record<string, unknown>>('patrisim_bloc1_pro2', {})
+function computePreCalculations() {
+  const bloc4 = loadLS<Record<string, unknown>>('patrisim_bloc4', {})
   const bloc2 = loadLS<Record<string, unknown>>('patrisim_bloc2', {})
   const bloc3 = loadLS<Record<string, unknown>>('patrisim_bloc3', {})
-  const bloc4 = loadLS<Record<string, unknown>>('patrisim_bloc4', {})
   const bloc5 = loadLS<Record<string, unknown>>('patrisim_bloc5', {})
-  const bloc6 = loadLS<Record<string, unknown>>('patrisim_bloc6', {})
-  const bloc7 = loadLS<Record<string, unknown>>('patrisim_bloc7', {})
-  const bloc0 = loadLS<{ objectifs?: string[]; niveauDetail?: string }>('patrisim_bloc0', {})
+  const bloc1p1 = loadLS<{ dateNaissance?: string }>('patrisim_bloc1_p1', {})
 
-  // Calculs patrimoine
   const totalImmo = parseNum((bloc2 as Record<string,number>).totalImmo)
   const totalFin = parseNum((bloc2 as Record<string,number>).totalFinancier)
   const totalAutres = parseNum((bloc2 as Record<string,number>).totalAutres)
   const patrimoineBrut = totalImmo + totalFin + totalAutres
 
-  const b3 = bloc3 as { creditsImmo?: {crd?: string; mensualiteHA?: string; mensualiteAssurance?: string}[]; creditsConso?: {crd?: string; mensualite?: string}[] }
+  const b3 = bloc3 as { creditsImmo?: {crd?: string}[]; creditsConso?: {crd?: string}[] }
   const totalDettes = (b3.creditsImmo || []).reduce((a, c) => a + parseNum(c.crd), 0) + (b3.creditsConso || []).reduce((a, c) => a + parseNum(c.crd), 0)
-  const totalMensualites = (b3.creditsImmo || []).reduce((a, c) => a + parseNum(c.mensualiteHA) + parseNum(c.mensualiteAssurance), 0) + (b3.creditsConso || []).reduce((a, c) => a + parseNum(c.mensualite), 0)
+  const patrimoineNet = patrimoineBrut - totalDettes
 
-  const b4 = bloc4 as { p1Pro?: {salaire?: string}; p2Pro?: {salaire?: string}; mensualitesCredits?: string; assurances?: string; abonnements?: string; loyerMensuel?: string; fiscal?: {tmi?: number; rfr?: string; impotNet?: string; prelevementsSociaux?: string} }
-  const revP1 = parseNum(b4.p1Pro?.salaire)
+  const b4 = bloc4 as { p1Pro?: {salaire?: string; remunNette?: string}; p2Pro?: {salaire?: string}; mensualitesCredits?: string; assurances?: string; abonnements?: string; loyerMensuel?: string; fiscal?: {tmi?: number; rfr?: string; impotNet?: string; prelevementsSociaux?: string} }
+  const revP1 = parseNum(b4.p1Pro?.salaire || b4.p1Pro?.remunNette)
   const revP2 = parseNum(b4.p2Pro?.salaire)
   const totalRev = revP1 + revP2
   const totalCharges = parseNum(b4.mensualitesCredits) + parseNum(b4.assurances) + parseNum(b4.abonnements) + parseNum(b4.loyerMensuel)
-  const capacite = Math.max(0, totalRev - totalCharges)
+  const capaciteEpargne = Math.max(0, totalRev - totalCharges)
 
-  const b6 = bloc6 as { reponses?: Record<string,number>; objectifsOrder?: string[]; objectifsSelectionnes?: string[] }
-  const scoreMifid = b6.reponses ? Object.values(b6.reponses).reduce((a, b) => a + b, 0) : 0
-  const profil = scoreMifid <= 10 ? 'Défensif' : scoreMifid <= 14 ? 'Équilibré' : scoreMifid <= 17 ? 'Dynamique' : 'Offensif'
+  const tmi = (b4.fiscal as Record<string,number>)?.tmi || 0
+  const ir = parseNum((b4.fiscal as Record<string,string>)?.impotNet)
+  const ps = parseNum((b4.fiscal as Record<string,string>)?.prelevementsSociaux)
+  const rfr = parseNum((b4.fiscal as Record<string,string>)?.rfr)
+  const pressionFiscale = ir + ps
+  const tauxMoyen = rfr > 0 ? Math.round(ir / rfr * 1000) / 10 : 0
 
-  const b5 = bloc5 as { retraiteP1?: {ageDepartSouhaite?: number; revenusCibles?: number}; projets?: {type?: string; montant?: string}[] }
-  const b7 = bloc7 as { heritiers?: {lien?: string; prenom?: string}[]; testament?: {aTestament?: boolean} }
+  const b5 = bloc5 as { retraiteP1?: {ageDepartSouhaite?: number; revenusCibles?: number; pensionEstimee?: number} }
+  const ageDepart = b5.retraiteP1?.ageDepartSouhaite || 64
+  const age1 = bloc1p1.dateNaissance ? Math.floor((Date.now() - new Date(bloc1p1.dateNaissance).getTime()) / 31557600000) : 0
+  const anneesAvantRetraite = Math.max(0, ageDepart - age1)
+  const pensionEstimee = b5.retraiteP1?.pensionEstimee || Math.round(totalRev * 0.5)
+  const revenusCibles = b5.retraiteP1?.revenusCibles || Math.round(totalRev * 0.75)
+  const deficitMensuel = Math.max(0, revenusCibles - pensionEstimee)
+  const capitalNecessaire = deficitMensuel > 0 ? Math.round(deficitMensuel * 12 / 0.04) : 0
+  const rendementAnnuel = 0.04
+  const capitalProjecte = anneesAvantRetraite > 0
+    ? Math.round(patrimoineNet * Math.pow(1 + rendementAnnuel, anneesAvantRetraite) + capaciteEpargne * 12 * ((Math.pow(1 + rendementAnnuel, anneesAvantRetraite) - 1) / rendementAnnuel))
+    : patrimoineNet
 
-  // Âges
-  const age1 = p1.dateNaissance ? Math.floor((Date.now() - new Date(String(p1.dateNaissance)).getTime()) / 31557600000) : 0
-  const age2 = p2.dateNaissance ? Math.floor((Date.now() - new Date(String(p2.dateNaissance)).getTime()) / 31557600000) : 0
-
-  // Objectif principal
-  const objectifPrincipal = (bloc0.objectifs || [])[0] || (b6.objectifsOrder || [])[0] || 'bilan'
+  const totalMensualites = parseNum(b4.mensualitesCredits)
+  const tauxEndettement = totalRev > 0 ? Math.round(totalMensualites / totalRev * 100) : 0
+  const plafondPer = totalRev > 0 ? Math.min(totalRev * 12 * 0.10, 35194) : 0
+  const economiePer = Math.round(plafondPer * tmi / 100)
 
   return {
-    // Contexte
-    mode,
-    objectif_principal: objectifPrincipal,
-    parcours: bloc0.objectifs || [],
-
-    // Profil civil résumé
-    p1_age: age1,
-    p1_statut_pro: pro1.statut,
-    p2_age: mode === 'couple' ? age2 : null,
-    p2_statut_pro: mode === 'couple' ? pro2.statut : null,
-    statut_matrimonial: (foyer as Record<string,string>).statutMatrimonial,
-    nb_enfants_charge: (foyer as Record<string,number>).enfantsCharge || 0,
-    type_logement: (foyer as Record<string,string>).typeLogement,
-
-    // Patrimoine résumé
-    patrimoine_brut: patrimoineBrut,
-    patrimoine_immobilier: totalImmo,
-    patrimoine_financier: totalFin,
-    patrimoine_autres: totalAutres,
-    total_dettes: totalDettes,
-    patrimoine_net: patrimoineBrut - totalDettes,
-    taux_endettement_patrimoine: patrimoineBrut > 0 ? Math.round(totalDettes / patrimoineBrut * 100) : 0,
-
-    // Flux résumé
-    revenus_nets_mensuels: totalRev,
-    charges_fixes_mensuelles: totalCharges,
-    mensualites_credits: totalMensualites,
-    capacite_epargne_mensuelle: capacite,
-    taux_endettement_revenus: totalRev > 0 ? Math.round(totalMensualites / totalRev * 100) : 0,
-
-    // Fiscalité résumé
-    tmi: b4.fiscal?.tmi || 0,
-    rfr: parseNum(b4.fiscal?.rfr),
-    ir_net: parseNum(b4.fiscal?.impotNet),
-    prelevements_sociaux: parseNum(b4.fiscal?.prelevementsSociaux),
-    pression_fiscale_annuelle: parseNum(b4.fiscal?.impotNet) + parseNum(b4.fiscal?.prelevementsSociaux),
-
-    // Retraite résumé
-    age_depart_souhaite: b5.retraiteP1?.ageDepartSouhaite || 64,
-    revenus_cibles_retraite: b5.retraiteP1?.revenusCibles || 0,
-    annees_avant_retraite: Math.max(0, (b5.retraiteP1?.ageDepartSouhaite || 64) - age1),
-
-    // Profil investisseur
-    score_mifid: scoreMifid,
-    profil_investisseur: profil,
-    objectifs_declares: b6.objectifsSelectionnes || [],
-
-    // Succession résumé
-    nb_heritiers: (b7.heritiers || []).length,
-    a_testament: b7.testament?.aTestament || false,
-    patrimoine_transmissible: patrimoineBrut - totalDettes,
-
-    // Projets
-    nb_projets: (b5.projets || []).length,
-    budget_projets: (b5.projets || []).reduce((a, p) => a + parseNum(p.montant), 0),
+    patrimoineBrut, patrimoineNet, totalDettes,
+    totalRev, totalCharges, capaciteEpargne,
+    tmi, ir, pressionFiscale, tauxMoyen, rfr,
+    ageDepart, anneesAvantRetraite, age1,
+    pensionEstimee, revenusCibles, deficitMensuel, capitalNecessaire, capitalProjecte,
+    tauxEndettement, totalMensualites,
+    plafondPer, economiePer,
   }
 }
 
-// ─── Appel API ────────────────────────────────────────────────────────────────
+// ─── Données compressées pour l'IA ───────────────────────────────────────────
+
+function buildCompressedData(preCalc: ReturnType<typeof computePreCalculations>) {
+  const mode = loadLS<{ v?: string }>('patrisim_bloc1_mode', {}).v || 'seul'
+  const pro1 = loadLS<Record<string, unknown>>('patrisim_bloc1_pro1', {})
+  const foyer = loadLS<Record<string, unknown>>('patrisim_bloc1_foyer', {})
+  const bloc6 = loadLS<Record<string, unknown>>('patrisim_bloc6', {})
+  const bloc7 = loadLS<Record<string, unknown>>('patrisim_bloc7', {})
+  const bloc0 = loadLS<{ objectif?: string }>('patrisim_bloc0', {})
+
+  const b6 = bloc6 as { reponses?: Record<string,number> }
+  const scoreMifid = b6.reponses ? Object.values(b6.reponses).reduce((a, b) => a + b, 0) : 0
+  const profil = scoreMifid <= 10 ? 'Défensif' : scoreMifid <= 14 ? 'Équilibré' : scoreMifid <= 17 ? 'Dynamique' : 'Offensif'
+  const b7 = bloc7 as { heritiers?: unknown[]; testament?: { aTestament?: boolean } }
+
+  return {
+    objectif: bloc0.objectif || 'bilan',
+    mode,
+    age: preCalc.age1,
+    statut_pro: pro1.statut,
+    statut_matrimonial: (foyer as Record<string,string>).statutMatrimonial,
+    nb_enfants: (foyer as Record<string,number>).enfantsCharge || 0,
+    patrimoine_net: preCalc.patrimoineNet,
+    revenus_mensuels: preCalc.totalRev,
+    capacite_epargne: preCalc.capaciteEpargne,
+    taux_endettement: preCalc.tauxEndettement,
+    tmi,
+    taux_moyen: preCalc.tauxMoyen,
+    pression_fiscale_annuelle: preCalc.pressionFiscale,
+    annees_avant_retraite: preCalc.anneesAvantRetraite,
+    deficit_mensuel_retraite: preCalc.deficitMensuel,
+    capital_necessaire_retraite: preCalc.capitalNecessaire,
+    capital_projete: preCalc.capitalProjecte,
+    nb_heritiers: (b7.heritiers || []).length,
+    a_testament: b7.testament?.aTestament || false,
+    patrimoine_transmissible: preCalc.patrimoineNet,
+    profil_investisseur: profil,
+    plafond_per_disponible: preCalc.plafondPer,
+    economie_per_potentielle: preCalc.economiePer,
+  }
+}
+
+// ─── Appel API ───────────────────────────────────────────────────────────────
 
 async function callAPI(data: ReturnType<typeof buildCompressedData>): Promise<AIResult> {
-  const parcours = data.objectif_principal
+  const tmi = data.tmi
   const mode = data.mode === 'couple' ? 'vouvoiement' : 'tutoiement'
 
-  const systemPrompt = `Tu es un conseiller en gestion de patrimoine (CGP) français expert et pédagogue.
-Tu analyses un profil patrimonial simplifié et génères un bilan personnalisé concis.
+  const systemPrompt = `Tu es un conseiller en gestion de patrimoine français, pédagogue et bienveillant.
+Toutes les métriques financières sont DÉJÀ CALCULÉES dans le profil fourni.
+Ta mission : écrire une synthèse humaine et des recommandations concrètes.
 
-RÈGLES :
-- Utilise le ${mode}
-- Montants en euros (€)
-- Recommandations pédagogiques, pas des conseils formels MiFID II
-- Réglementation fiscale française 2025
-- Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown
-- Sois concis et précis
+RÈGLES ABSOLUES :
+- ${mode}
+- Zéro jargon : pas de "MiFID II", "AGIRC-ARRCO", "surcotisations", "arbitrage", "allocation d'actifs"
+- Pas de tirets "—" dans le texte
+- Phrases simples et concrètes, accessibles à un non-spécialiste
+- Objectif analysé : ${data.objectif}
+- JSON uniquement, sans markdown ni texte autour
 
-OBJECTIF ANALYSÉ : ${parcours}
-
-Structure JSON exacte à retourner :
+Retourne exactement ce JSON :
 {
   "score_global": number (0-100),
-  "commentaire_global": string (1 phrase),
-  "phrase_bilan": string (1 phrase résumant la situation),
-  "points_forts": [string, string, string],
-  "points_attention": [string, string, string],
-  "opportunites": [string, string, string],
-  "objectif_principal": string,
+  "commentaire_global": string (1 phrase simple),
+  "phrase_bilan": string (1 phrase humaine et directe),
+  "points_forts": [3 courtes phrases positives],
+  "points_attention": [3 courtes phrases de vigilance],
+  "opportunites": [3 actions concrètes et simples],
+  "objectif_principal": string (reformulation simple de l'objectif),
   "probabilite_succes": number (0-100),
-  "situation_actuelle": string (2-3 phrases),
-  "gap_analyse": string (2-3 phrases),
+  "situation_actuelle": string (2 phrases simples),
+  "gap_analyse": string (2 phrases sur ce qui manque),
   "plan_action": [
     {"etape": 1, "action": string, "delai": string, "impact": string, "priorite": "haute"|"moyenne"|"faible"},
     {"etape": 2, "action": string, "delai": string, "impact": string, "priorite": "haute"|"moyenne"|"faible"},
     {"etape": 3, "action": string, "delai": string, "impact": string, "priorite": "haute"|"moyenne"|"faible"}
   ],
   "recommandations": [
-    {"titre": string, "description": string, "urgence": "immediate"|"court_terme"|"moyen_terme", "gain_estime": number},
+    {"titre": string, "description": string (2 phrases max, simples), "urgence": "immediate"|"court_terme"|"moyen_terme", "gain_estime": number},
     {"titre": string, "description": string, "urgence": "immediate"|"court_terme"|"moyen_terme", "gain_estime": number},
     {"titre": string, "description": string, "urgence": "immediate"|"court_terme"|"moyen_terme", "gain_estime": number}
   ],
   "alertes": [
-    {"niveau": "critique"|"attention"|"info", "message": string, "action": string}
-  ],
-  "disclaimer": "Analyse simplifiée basée sur des données partielles. Cette simulation ne constitue pas un conseil en investissement au sens MiFID II. Consultez un conseiller en gestion de patrimoine agréé pour une analyse complète et personnalisée."
+    {"niveau": "critique"|"attention"|"info", "message": string (1 phrase), "action": string (1 phrase)}
+  ]
 }`
 
   const response = await fetch('/api/claude', {
@@ -193,24 +186,19 @@ Structure JSON exacte à retourner :
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
+      max_tokens: 1000,
       system: systemPrompt,
-      messages: [{
-        role: 'user',
-        content: `Profil patrimonial à analyser :\n${JSON.stringify(data, null, 2)}`
-      }]
+      messages: [{ role: 'user', content: `Profil :\n${JSON.stringify(data)}` }]
     })
   })
 
   const json = await response.json()
   const text = json.content?.find((b: { type: string }) => b.type === 'text')?.text || ''
   if (!text) throw new Error('Réponse vide')
-
-  const jsonStart = text.indexOf('{')
-  const jsonEnd = text.lastIndexOf('}')
-  if (jsonStart === -1 || jsonEnd === -1) throw new Error('JSON introuvable')
-
-  return JSON.parse(text.substring(jsonStart, jsonEnd + 1)) as AIResult
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start === -1 || end === -1) throw new Error('JSON introuvable')
+  return JSON.parse(text.substring(start, end + 1)) as AIResult
 }
 
 // ─── Composants UI ────────────────────────────────────────────────────────────
@@ -219,101 +207,143 @@ function ScoreGauge({ score }: { score: number }) {
   const color = score >= 75 ? '#0F6E56' : score >= 55 ? '#185FA5' : score >= 35 ? '#D97706' : '#DC2626'
   const r = 52
   const circ = 2 * Math.PI * r
-  const dash = (score / 100) * circ
+  const filled = (score / 100) * circ * 0.75
+  const offset = circ * 0.125
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: 128, height: 128 }}>
-      <svg width={128} height={128} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={64} cy={64} r={r} fill="none" stroke="#F3F4F6" strokeWidth={10} />
-        <circle cx={64} cy={64} r={r} fill="none" stroke={color} strokeWidth={10}
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
-      </svg>
-      <div className="absolute flex flex-col items-center">
-        <span className="font-bold" style={{ color, fontSize: 28 }}>{score}</span>
-        <span className="text-[10px] text-gray-400">/100</span>
-      </div>
+    <svg width="130" height="130" viewBox="0 0 130 130" className="flex-shrink-0">
+      <circle cx="65" cy="65" r={r} fill="none" stroke="#F3F4F6" strokeWidth="10" strokeDasharray={`${circ * 0.75} ${circ * 0.25}`} strokeDashoffset={-offset} strokeLinecap="round" transform="rotate(0 65 65)" />
+      <circle cx="65" cy="65" r={r} fill="none" stroke={color} strokeWidth="10" strokeDasharray={`${filled} ${circ - filled}`} strokeDashoffset={-offset} strokeLinecap="round" transform="rotate(0 65 65)" style={{ transition: 'stroke-dasharray 1s ease' }} />
+      <text x="65" y="60" textAnchor="middle" dominantBaseline="middle" fill={color} fontSize="22" fontWeight="bold">{score}</text>
+      <text x="65" y="78" textAnchor="middle" dominantBaseline="middle" fill="#9CA3AF" fontSize="11">/100</text>
+    </svg>
+  )
+}
+
+function MetricCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: 'blue' | 'green' | 'amber' | 'red' }) {
+  const styles = {
+    blue: 'bg-[#E6F1FB] border-[#185FA5]/20',
+    green: 'bg-[#E1F5EE] border-[#0F6E56]/20',
+    amber: 'bg-amber-50 border-amber-200',
+    red: 'bg-red-50 border-red-200',
+  }
+  const textStyles = { blue: 'text-[#0C447C]', green: 'text-[#085041]', amber: 'text-amber-800', red: 'text-red-700' }
+  return (
+    <div className={`rounded-2xl border p-4 ${styles[color]}`}>
+      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+      <p className={`text-[20px] font-bold ${textStyles[color]}`}>{value}</p>
+      <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>
     </div>
   )
 }
 
+// ─── Constantes ──────────────────────────────────────────────────────────────
+
 const LOADING_MESSAGES = [
-  'Analyse de votre profil civil…',
-  'Évaluation de votre patrimoine…',
-  'Calcul de votre capacité d\'épargne…',
-  'Analyse fiscale…',
-  'Simulation retraite…',
-  'Génération des recommandations…',
-  'Finalisation de votre bilan…',
+  'Lecture de votre profil...',
+  'Calcul du patrimoine et des dettes...',
+  'Analyse des revenus et charges...',
+  'Simulation de la retraite...',
+  'Génération des recommandations...',
+  'Finalisation du bilan...',
 ]
 
 const PARCOURS_LABELS: Record<string, string> = {
-  retraite: 'Préparer ma retraite',
-  bilan: 'Bilan patrimonial complet',
-  fiscalite: 'Optimiser ma fiscalité',
-  succession: 'Préparer ma succession',
+  retraite: 'Parcours retraite',
+  bilan: 'Bilan complet',
+  fiscalite: 'Parcours fiscalité',
+  succession: 'Parcours succession',
 }
 
-// ─── Page principale ──────────────────────────────────────────────────────────
+const urgenceBorder: Record<string, string> = { immediate: 'border-l-red-500', court_terme: 'border-l-amber-500', moyen_terme: 'border-l-[#185FA5]' }
+const urgenceLabel: Record<string, string> = { immediate: 'À faire maintenant', court_terme: 'Dans les 6 mois', moyen_terme: 'À moyen terme' }
+const urgenceBadge: Record<string, string> = { immediate: 'bg-red-50 text-red-700', court_terme: 'bg-amber-50 text-amber-700', moyen_terme: 'bg-[#E6F1FB] text-[#0C447C]' }
+
+// ─── Main ────────────────────────────────────────────────────────────────────
 
 export default function Analyse() {
   const navigate = useNavigate()
   const [phase, setPhase] = useState<'loading' | 'result' | 'error'>('loading')
-  const [loadingMsg, setLoadingMsg] = useState(0)
-  const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<AIResult | null>(null)
+  const [preCalc, setPreCalc] = useState<ReturnType<typeof computePreCalculations> | null>(null)
+  const [progress, setProgress] = useState(0)
+  const [loadingMsg, setLoadingMsg] = useState(0)
   const [errorMsg, setErrorMsg] = useState('')
   const hasCalled = useRef(false)
-
-  useEffect(() => {
-    if (phase !== 'loading') return
-    const interval = setInterval(() => {
-      setProgress(p => Math.min(p + 1.5, 92))
-      setLoadingMsg(m => Math.min(m + (Math.random() > 0.82 ? 1 : 0), LOADING_MESSAGES.length - 1))
-    }, 300)
-    return () => clearInterval(interval)
-  }, [phase])
 
   useEffect(() => {
     if (hasCalled.current) return
     hasCalled.current = true
 
+    const ticker = setInterval(() => {
+      setProgress(p => Math.min(p + 2, 95))
+      setLoadingMsg(m => Math.min(m + 1, LOADING_MESSAGES.length - 1))
+    }, 1200)
+
     const run = async () => {
       try {
+        const calc = computePreCalculations()
+        setPreCalc(calc)
+
+        // Cache 30 min
         const cached = localStorage.getItem('patrisim_analyse')
         if (cached) {
           const { data, ts } = JSON.parse(cached)
           if (Date.now() - ts < 30 * 60 * 1000) {
+            clearInterval(ticker)
             setResult(data); setProgress(100)
             setTimeout(() => setPhase('result'), 400)
             return
           }
         }
-        const compressed = buildCompressedData()
+
+        // Cache démo
+        const bloc0 = JSON.parse(localStorage.getItem('patrisim_bloc0') || '{}')
+        if (bloc0._demoProfileId) {
+          const demoCache = localStorage.getItem(`patrisim_analyse_demo_${bloc0._demoProfileId}`)
+          if (demoCache) {
+            const { data } = JSON.parse(demoCache)
+            clearInterval(ticker)
+            setResult(data); setProgress(100)
+            setTimeout(() => setPhase('result'), 400)
+            return
+          }
+        }
+
+        const compressed = buildCompressedData(calc)
         let res: AIResult
         try { res = await callAPI(compressed) }
         catch { await new Promise(r => setTimeout(r, 2000)); res = await callAPI(compressed) }
-        localStorage.setItem('patrisim_analyse', JSON.stringify({ data: res, ts: Date.now() }))
+
+        const analyseData = JSON.stringify({ data: res, ts: Date.now() })
+        localStorage.setItem('patrisim_analyse', analyseData)
+        if (bloc0._demoProfileId) {
+          localStorage.setItem(`patrisim_analyse_demo_${bloc0._demoProfileId}`, analyseData)
+        }
+
+        clearInterval(ticker)
         setResult(res); setProgress(100)
         setTimeout(() => setPhase('result'), 500)
       } catch (e) {
+        clearInterval(ticker)
         setErrorMsg(e instanceof Error ? e.message : 'Erreur inconnue')
         setPhase('error')
       }
     }
     run()
+    return () => clearInterval(ticker)
   }, [])
 
-  // Loading
   if (phase === 'loading') return (
     <div className="min-h-screen bg-[#F8F8F6] flex flex-col items-center justify-center px-8">
       <div className="max-w-md w-full text-center space-y-8">
         <div>
           <span className="text-[28px] font-bold text-gray-900">Patri<span className="text-[#185FA5]">Sim</span></span>
-          <p className="text-[12px] text-gray-400 mt-1">Analyse patrimoniale intelligente</p>
+          <p className="text-[12px] text-gray-400 mt-1">Analyse en cours</p>
         </div>
         <ScoreGauge score={Math.round(progress)} />
         <div className="space-y-2">
           <p className="text-[16px] font-semibold text-gray-800">{LOADING_MESSAGES[loadingMsg]}</p>
-          <p className="text-[12px] text-gray-400">Analyse en cours · environ 15 secondes</p>
+          <p className="text-[12px] text-gray-400">Environ 15 secondes</p>
         </div>
         <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
           <div className="h-full bg-[#185FA5] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
@@ -332,13 +362,12 @@ export default function Analyse() {
     </div>
   )
 
-  // Error
-  if (phase === 'error' || !result) return (
+  if (phase === 'error' || !result || !preCalc) return (
     <div className="min-h-screen bg-[#F8F8F6] flex items-center justify-center px-8">
       <div className="max-w-md w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center space-y-5">
         <AlertTriangle size={40} className="text-amber-500 mx-auto" />
         <h2 className="text-[18px] font-bold text-gray-900">Analyse temporairement indisponible</h2>
-        <p className="text-[13px] text-gray-500">L'analyse IA est momentanément indisponible.</p>
+        <p className="text-[13px] text-gray-500">Vérifiez votre connexion et réessayez.</p>
         {errorMsg && <p className="text-[11px] text-red-400 bg-red-50 rounded-lg px-3 py-2">{errorMsg}</p>}
         <div className="flex gap-3">
           <button type="button" onClick={() => { hasCalled.current = false; setPhase('loading'); setProgress(0); setLoadingMsg(0) }}
@@ -355,55 +384,154 @@ export default function Analyse() {
   )
 
   const r = result
+  const c = preCalc
   const scoreColor = r.score_global >= 75 ? 'text-[#0F6E56]' : r.score_global >= 55 ? 'text-[#185FA5]' : r.score_global >= 35 ? 'text-amber-600' : 'text-red-600'
   const now = new Date()
   const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
-  const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-
-  const urgenceBorder: Record<string, string> = { immediate: 'border-l-red-500', court_terme: 'border-l-amber-500', moyen_terme: 'border-l-[#185FA5]' }
-  const urgenceLabel: Record<string, string> = { immediate: 'Immédiate', court_terme: 'Court terme', moyen_terme: 'Moyen terme' }
-  const urgenceBadge: Record<string, string> = { immediate: 'bg-red-50 text-red-700', court_terme: 'bg-amber-50 text-amber-700', moyen_terme: 'bg-[#E6F1FB] text-[#0C447C]' }
 
   const dashModules = [
-    { icon: <BarChart2 size={22} />, title: 'Bilan patrimonial', desc: 'Évolution, répartition, projections', path: '/dashboard/bilan' },
+    { icon: <BarChart2 size={22} />, title: 'Bilan patrimonial', desc: 'Actifs, dettes, projection', path: '/dashboard/bilan' },
     { icon: <TrendingUp size={22} />, title: 'Simulation retraite', desc: 'Capital, revenus, scénarios', path: '/dashboard/retraite' },
-    { icon: <PieChart size={22} />, title: 'Analyse portefeuille', desc: 'Allocation, risque, MiFID II', path: '/dashboard/portefeuille' },
-    { icon: <DollarSign size={22} />, title: 'Optimisation fiscale', desc: 'TMI, enveloppes, économies', path: '/dashboard/fiscal' },
+    { icon: <PieChart size={22} />, title: 'Analyse portefeuille', desc: 'Allocation, risque, cohérence', path: '/dashboard/portefeuille' },
+    { icon: <DollarSign size={22} />, title: 'Optimisation fiscale', desc: 'Impôts, enveloppes, économies', path: '/dashboard/fiscal' },
     { icon: <Users size={22} />, title: 'Succession simulée', desc: 'Droits, optimisation, transmission', path: '/dashboard/succession' },
-    { icon: <Settings size={22} />, title: 'Hypothèses & scénarios', desc: 'Modifier les paramètres', path: '/dashboard/hypotheses' },
+    { icon: <Settings size={22} />, title: 'Hypothèses', desc: 'Modifier les paramètres', path: '/dashboard/hypotheses' },
   ]
 
   return (
     <div className="min-h-screen bg-[#F8F8F6]">
       <div className="max-w-4xl mx-auto px-8 py-10 pb-16 space-y-6">
 
-        {/* Header */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="w-2 h-2 rounded-full bg-[#0F6E56]" />
-            <span className="text-[11px] text-[#0F6E56] font-semibold uppercase tracking-wider">
-              {PARCOURS_LABELS[r.objectif_principal] || 'Analyse complète'}
-            </span>
+        {/* ── Bloc Armand — EN HAUT, bien visible ── */}
+        <div className="bg-white rounded-2xl border border-[#185FA5]/20 shadow-sm p-5">
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-[#E6F1FB] flex items-center justify-center flex-shrink-0">
+                <GraduationCap size={20} className="text-[#185FA5]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-[14px] font-bold text-gray-900">Armand Billard</p>
+                  <span className="text-[10px] bg-[#E6F1FB] text-[#0C447C] px-2 py-0.5 rounded-full font-semibold">Créateur de PatriSim</span>
+                </div>
+                <p className="text-[12px] text-gray-500 mt-0.5">Étudiant en Master Gestion de Patrimoine</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  PatriSim est un outil pédagogique pour comprendre sa situation patrimoniale. Pour toute question ou retour, écrivez-moi.
+                </p>
+              </div>
+            </div>
+            <a href="mailto:a.billard.cgp@gmail.com"
+              className="flex items-center gap-2 bg-[#185FA5] text-white px-4 py-2.5 rounded-xl text-[12px] font-semibold hover:bg-[#0C447C] transition-all whitespace-nowrap flex-shrink-0">
+              <Mail size={14} />
+              Me contacter
+            </a>
           </div>
-          <h1 className="text-[28px] font-bold text-gray-900 tracking-tight">Votre bilan patrimonial</h1>
-          <p className="text-[13px] text-gray-400 mt-1">Généré le {dateStr} à {timeStr}</p>
         </div>
 
-        {/* Bannière version simplifiée */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 flex items-start gap-3">
-          <Info size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+        {/* ── Header analyse ── */}
+        <div className="flex items-start justify-between">
           <div>
-            <p className="text-[12px] font-semibold text-amber-800">Version simplifiée — PatriSim v1</p>
-            <p className="text-[11px] text-amber-700 mt-0.5">Cette analyse est basée sur un résumé de votre profil. Pour une analyse complète et personnalisée, consultez un conseiller en gestion de patrimoine agréé (CGP).</p>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2 h-2 rounded-full bg-[#0F6E56]" />
+              <span className="text-[11px] text-[#0F6E56] font-semibold uppercase tracking-wider">
+                {PARCOURS_LABELS[r.objectif_principal] || 'Analyse complète'}
+              </span>
+            </div>
+            <h1 className="text-[28px] font-bold text-gray-900 tracking-tight">Votre bilan patrimonial</h1>
+            <p className="text-[12px] text-gray-400 mt-1">Généré le {dateStr}</p>
           </div>
         </div>
 
-        {/* Score + phrase bilan */}
+        {/* ── Disclaimer pédagogique ── */}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
+          <p className="text-[12px] text-amber-800 leading-relaxed">
+            <strong>Outil pédagogique :</strong> PatriSim vous permet de mieux comprendre votre situation patrimoniale et vos perspectives d'évolution.
+            Les analyses sont des estimations basées sur vos informations et ne remplacent pas un accompagnement personnalisé avec un conseiller en gestion de patrimoine.
+          </p>
+        </div>
+
+        {/* ── Métriques clés ── */}
+        <div className="grid grid-cols-3 gap-3">
+          <MetricCard
+            label="Patrimoine net"
+            value={`${fmt(c.patrimoineNet)} €`}
+            sub={c.totalDettes > 0 ? `Dettes : ${fmt(c.totalDettes)} €` : 'Sans dettes'}
+            color={c.patrimoineNet >= 0 ? 'blue' : 'red'}
+          />
+          <MetricCard
+            label="Capacité d'épargne"
+            value={`${fmt(c.capaciteEpargne)} €/mois`}
+            sub={`Revenus : ${fmt(c.totalRev)} €/mois`}
+            color={c.capaciteEpargne > 500 ? 'green' : c.capaciteEpargne > 0 ? 'amber' : 'red'}
+          />
+          <MetricCard
+            label="Taux d'endettement"
+            value={`${c.tauxEndettement}%`}
+            sub={c.tauxEndettement < 33 ? 'Niveau sain' : c.tauxEndettement < 40 ? 'Limite acceptable' : 'Trop élevé'}
+            color={c.tauxEndettement < 33 ? 'green' : c.tauxEndettement < 40 ? 'amber' : 'red'}
+          />
+        </div>
+
+        {/* ── Métriques fiscales ── */}
+        {c.tmi > 0 && (
+          <div className="grid grid-cols-3 gap-3">
+            <MetricCard
+              label="Tranche d'imposition"
+              value={`${c.tmi}%`}
+              sub={`Taux réel moyen : ${c.tauxMoyen}%`}
+              color="blue"
+            />
+            <MetricCard
+              label="Impôts annuels"
+              value={`${fmt(c.pressionFiscale)} €`}
+              sub={`Soit ${fmt(Math.round(c.pressionFiscale / 12))} € par mois`}
+              color="amber"
+            />
+            {c.economiePer > 0 && (
+              <MetricCard
+                label="Économie possible sur impôts"
+                value={`${fmt(c.economiePer)} €/an`}
+                sub={`Via un plan d'épargne retraite`}
+                color="green"
+              />
+            )}
+          </div>
+        )}
+
+        {/* ── Retraite ── */}
+        {c.anneesAvantRetraite > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <p className="text-[13px] font-semibold text-gray-800 mb-4">Simulation retraite</p>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Départ dans</p>
+                <p className="text-[22px] font-bold text-[#185FA5]">{c.anneesAvantRetraite} ans</p>
+                <p className="text-[11px] text-gray-400">à {c.ageDepart} ans</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Déficit mensuel estimé</p>
+                <p className={`text-[22px] font-bold ${c.deficitMensuel > 0 ? 'text-amber-600' : 'text-[#0F6E56]'}`}>
+                  {c.deficitMensuel > 0 ? `${fmt(c.deficitMensuel)} €/mois` : 'Objectif atteint'}
+                </p>
+              </div>
+            </div>
+            {c.capitalNecessaire > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                <p className="text-[12px] text-amber-800">
+                  Pour combler ce déficit, vous aurez besoin de <strong>{fmt(c.capitalNecessaire)} €</strong> à la retraite.
+                  Avec votre épargne actuelle, votre capital projeté est de <strong>{fmt(c.capitalProjecte)} €</strong>.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Score + phrase bilan ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center gap-8 mb-4">
             <ScoreGauge score={r.score_global} />
             <div>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Score patrimonial global</p>
+              <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Score global</p>
               <p className={`text-[32px] font-bold ${scoreColor}`}>{r.score_global}<span className="text-[18px] text-gray-400 font-normal">/100</span></p>
               <p className="text-[13px] text-gray-600 mt-1 max-w-sm">{r.commentaire_global}</p>
             </div>
@@ -413,7 +541,7 @@ export default function Analyse() {
           </div>
         </div>
 
-        {/* Synthèse 3 colonnes */}
+        {/* ── Synthèse 3 colonnes ── */}
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F6E56] mb-2">Points forts</p>
@@ -434,7 +562,7 @@ export default function Analyse() {
             ))}
           </div>
           <div className="space-y-2">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#185FA5] mb-2">Opportunités</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#185FA5] mb-2">Ce que vous pouvez faire</p>
             {(r.opportunites || []).map((p, i) => (
               <div key={i} className="bg-white border border-[#185FA5]/20 rounded-xl px-4 py-3 flex gap-2">
                 <Info size={14} className="text-[#185FA5] flex-shrink-0 mt-0.5" />
@@ -444,45 +572,56 @@ export default function Analyse() {
           </div>
         </div>
 
-        {/* Objectif principal */}
+        {/* ── Objectif + plan d'action ── */}
         <div className="bg-white rounded-2xl border-2 border-[#185FA5]/30 shadow-sm p-6 space-y-4">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Objectif analysé</p>
-              <p className="text-[20px] font-bold text-gray-900">{r.objectif_principal}</p>
+              <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Votre objectif</p>
+              <p className="text-[18px] font-bold text-gray-900">{r.objectif_principal}</p>
             </div>
-            <div className="text-center">
-              <div className={`text-[28px] font-bold ${r.probabilite_succes >= 70 ? 'text-[#0F6E56]' : r.probabilite_succes >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
+            <div className="text-center bg-gray-50 rounded-xl px-4 py-2">
+              <div className={`text-[26px] font-bold ${r.probabilite_succes >= 70 ? 'text-[#0F6E56]' : r.probabilite_succes >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
                 {r.probabilite_succes}%
               </div>
-              <p className="text-[10px] text-gray-400">Probabilité</p>
+              <p className="text-[10px] text-gray-400">de réussite</p>
             </div>
           </div>
+
+          <div>
+            <div className="flex justify-between text-[11px] text-gray-400 mb-1">
+              <span>Progression vers l'objectif</span>
+              <span>{r.probabilite_succes}%</span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all ${r.probabilite_succes >= 70 ? 'bg-[#0F6E56]' : r.probabilite_succes >= 40 ? 'bg-amber-500' : 'bg-red-500'}`}
+                style={{ width: `${r.probabilite_succes}%` }} />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-[11px] font-semibold text-gray-500 uppercase mb-2">Situation actuelle</p>
+              <p className="text-[11px] font-semibold text-gray-500 uppercase mb-2">Où vous en êtes</p>
               <p className="text-[12px] text-gray-700">{r.situation_actuelle}</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-[11px] font-semibold text-gray-500 uppercase mb-2">Analyse de l'écart</p>
+              <p className="text-[11px] font-semibold text-gray-500 uppercase mb-2">Ce qu'il vous manque</p>
               <p className="text-[12px] text-gray-700">{r.gap_analyse}</p>
             </div>
           </div>
 
-          {/* Plan d'action */}
           <div>
-            <p className="text-[13px] font-semibold text-gray-800 mb-3">Plan d'action en 3 étapes</p>
+            <p className="text-[13px] font-semibold text-gray-800 mb-3">Votre plan d'action</p>
             <div className="space-y-2">
               {(r.plan_action || []).map(step => (
                 <div key={step.etape} className="bg-gray-50 rounded-xl px-4 py-3 flex items-start gap-4">
                   <span className="w-6 h-6 rounded-full bg-[#185FA5] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">{step.etape}</span>
                   <div className="flex-1">
                     <p className="text-[13px] font-semibold text-gray-800">{step.action}</p>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{step.delai}</span>
                       <span className="text-[10px] bg-[#E1F5EE] text-[#085041] px-2 py-0.5 rounded-full">{step.impact}</span>
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${step.priorite === 'haute' ? 'bg-red-50 text-red-600' : step.priorite === 'moyenne' ? 'bg-amber-50 text-amber-700' : 'bg-[#E6F1FB] text-[#0C447C]'}`}>
-                        {step.priorite === 'haute' ? 'Haute' : step.priorite === 'moyenne' ? 'Moyenne' : 'Faible'}
+                        {step.priorite === 'haute' ? 'Priorité haute' : step.priorite === 'moyenne' ? 'Priorité moyenne' : 'Priorité faible'}
                       </span>
                     </div>
                   </div>
@@ -492,9 +631,9 @@ export default function Analyse() {
           </div>
         </div>
 
-        {/* Recommandations */}
+        {/* ── Recommandations ── */}
         <div>
-          <p className="text-[16px] font-bold text-gray-900 mb-4">Recommandations personnalisées</p>
+          <p className="text-[16px] font-bold text-gray-900 mb-4">Recommandations</p>
           <div className="space-y-3">
             {(r.recommandations || []).map((rec, i) => (
               <div key={i} className={`bg-white rounded-2xl border border-gray-100 border-l-4 shadow-sm p-5 ${urgenceBorder[rec.urgence] || 'border-l-gray-300'}`}>
@@ -504,16 +643,16 @@ export default function Analyse() {
                   </span>
                 </div>
                 <p className="text-[14px] font-semibold text-gray-900 mb-1">{rec.titre}</p>
-                <p className="text-[12px] text-gray-600">{rec.description}</p>
+                <p className="text-[12px] text-gray-600 leading-relaxed">{rec.description}</p>
                 {rec.gain_estime > 0 && (
-                  <p className="text-[12px] text-[#0F6E56] font-semibold mt-2">Gain estimé : +{fmt(rec.gain_estime)} €</p>
+                  <p className="text-[12px] text-[#0F6E56] font-semibold mt-2">Gain potentiel : {fmt(rec.gain_estime)} € par an</p>
                 )}
               </div>
             ))}
           </div>
         </div>
 
-        {/* Alertes */}
+        {/* ── Alertes ── */}
         {(r.alertes || []).length > 0 && (
           <div>
             <p className="text-[16px] font-bold text-gray-900 mb-4">Points de vigilance</p>
@@ -531,9 +670,9 @@ export default function Analyse() {
           </div>
         )}
 
-        {/* Dashboard */}
+        {/* ── Modules dashboard ── */}
         <div>
-          <p className="text-[16px] font-bold text-gray-900 mb-4">Accédez à vos analyses détaillées</p>
+          <p className="text-[16px] font-bold text-gray-900 mb-4">Analyses détaillées</p>
           <div className="grid grid-cols-2 gap-4">
             {dashModules.map((m, i) => (
               <button key={i} type="button" onClick={() => navigate(m.path)}
@@ -546,17 +685,16 @@ export default function Analyse() {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="space-y-4">
+        {/* ── Footer ── */}
+        <div className="space-y-3">
           <button type="button" onClick={() => navigate('/start')}
             className="w-full py-3 rounded-xl border border-gray-200 text-[13px] text-gray-500 hover:bg-gray-50 transition-colors">
-            ← Modifier mon profil
+            Modifier mon profil
           </button>
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <p className="text-[11px] text-amber-700 leading-relaxed">
-              <strong>PatriSim v1 — Simulation pédagogique.</strong> {r.disclaimer}
-            </p>
-          </div>
+          <p className="text-[11px] text-gray-400 text-center leading-relaxed px-4">
+            PatriSim est un outil de simulation pédagogique. Les résultats sont des estimations et ne constituent pas un conseil en investissement.
+            Consultez un conseiller en gestion de patrimoine pour toute décision financière importante.
+          </p>
         </div>
 
       </div>

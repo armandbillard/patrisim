@@ -17,6 +17,7 @@ import Analyse from './pages/Analyse'
 import Dashboard from './pages/Dashboard'
 import Demo from './pages/Demo'
 
+// Wrapper avec sidebar + animation
 function WithSidebar({ step, children }: { step: number; children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-[#F8F8F6]">
@@ -33,16 +34,15 @@ export default function App() {
     <BrowserRouter>
       <ScrollToTop />
       <Routes>
+        {/* Landing */}
         <Route path="/" element={<Landing />} />
 
+        {/* Onboarding — Partie 0 */}
         <Route path="/start" element={
           <PageTransition><Bloc0 /></PageTransition>
         } />
 
-        <Route path="/demo" element={
-          <PageTransition><Demo /></PageTransition>
-        } />
-
+        {/* Blocs 1–7 avec sidebar */}
         <Route path="/bloc1" element={<WithSidebar step={1}><Bloc1 /></WithSidebar>} />
         <Route path="/bloc2" element={<WithSidebar step={2}><Bloc2 /></WithSidebar>} />
         <Route path="/bloc3" element={<WithSidebar step={3}><Bloc3 /></WithSidebar>} />
@@ -51,12 +51,20 @@ export default function App() {
         <Route path="/bloc6" element={<WithSidebar step={6}><Bloc6 /></WithSidebar>} />
         <Route path="/bloc7" element={<WithSidebar step={7}><Bloc7 /></WithSidebar>} />
 
+        {/* Demo */}
+        <Route path="/demo" element={
+          <PageTransition><Demo /></PageTransition>
+        } />
+
+        {/* Analyse IA */}
         <Route path="/analyse" element={
           <PageTransition><Analyse /></PageTransition>
         } />
 
+        {/* Dashboard */}
         <Route path="/dashboard/*" element={<Dashboard />} />
 
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
