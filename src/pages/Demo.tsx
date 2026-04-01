@@ -556,10 +556,10 @@ export function loadDemoProfileWithCache(profileId: string, cachedResult: unknow
 // ─── Page Demo ────────────────────────────────────────────────────────────────
 
 const PROFILE_METRICS: Record<string, { revenus: string; patrimoine: string; tmi: string }> = {
-  'couple-50':    { revenus: '8 000 €/mois',  patrimoine: '650 000 €', tmi: '30%' },
-  'celibataire-35': { revenus: '4 800 €/mois', patrimoine: '78 000 €',  tmi: '30%' },
+  'couple-50':    { revenus: '6 000 €/mois',  patrimoine: '350 000 €', tmi: '30%' },
+  'celibataire-35': { revenus: '3 000 €/mois', patrimoine: '78 000 €',  tmi: '30%' },
   'retraite-65':  { revenus: '2 800 €/mois',  patrimoine: '820 000 €', tmi: '11%' },
-  'tns-42':       { revenus: '5 600 €/mois',  patrimoine: '740 000 €', tmi: '30%' },
+  'tns-42':       { revenus: '5 600 €/mois',  patrimoine: '740 000 €', tmi: '45%' },
 }
 
 export default function Demo() {
