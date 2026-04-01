@@ -75,18 +75,21 @@ export default function Landing() {
                   <p className="text-[16px] font-bold text-white">Armand Billard</p>
                   <span className="text-[10px] bg-[#185FA5]/20 text-[#185FA5] px-2 py-0.5 rounded-full font-semibold">Créateur</span>
                 </div>
-                <p className="text-[13px] text-gray-400">Étudiant en Master Gestion de Patrimoine</p>
+                <p className="text-[13px] text-gray-400">Futur professionnel en gestion de patrimoine</p>
                 <p className="text-[12px] text-gray-500 mt-1 max-w-lg">
                   PatriSim est un outil pédagogique pour mieux comprendre sa situation patrimoniale.
                   Les analyses ne remplacent pas l'accompagnement d'un conseiller en gestion de patrimoine.
                 </p>
               </div>
             </div>
-            <a href="mailto:a.billard.cgp@gmail.com"
-              className="flex items-center gap-2 bg-[#185FA5] text-white px-5 py-3 rounded-xl text-[13px] font-semibold hover:bg-[#0C447C] transition-all whitespace-nowrap flex-shrink-0">
-              <Mail size={15} />
-              Me contacter
-            </a>
+            <div className="flex flex-col items-center gap-2 flex-shrink-0">
+              <a href="mailto:a.billard.cgp@gmail.com"
+                className="flex items-center gap-2 bg-[#185FA5] text-white px-5 py-3 rounded-xl text-[13px] font-semibold hover:bg-[#0C447C] transition-all whitespace-nowrap">
+                <Mail size={15} />
+                Me contacter
+              </a>
+              <span className="text-sm text-gray-400 select-text">a.billard.cgp@gmail.com</span>
+            </div>
           </div>
         </div>
       </section>

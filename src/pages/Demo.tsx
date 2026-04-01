@@ -555,6 +555,13 @@ export function loadDemoProfileWithCache(profileId: string, cachedResult: unknow
 
 // ─── Page Demo ────────────────────────────────────────────────────────────────
 
+const PROFILE_METRICS: Record<string, { revenus: string; patrimoine: string; tmi: string }> = {
+  'couple-50':    { revenus: '8 000 €/mois',  patrimoine: '650 000 €', tmi: '30%' },
+  'celibataire-35': { revenus: '4 800 €/mois', patrimoine: '78 000 €',  tmi: '30%' },
+  'retraite-65':  { revenus: '2 800 €/mois',  patrimoine: '820 000 €', tmi: '11%' },
+  'tns-42':       { revenus: '5 600 €/mois',  patrimoine: '740 000 €', tmi: '30%' },
+}
+
 export default function Demo() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState<string | null>(null)
@@ -601,9 +608,23 @@ export default function Demo() {
               <p className="text-[15px] font-semibold text-gray-900 mb-2 group-hover:text-[#185FA5] transition-colors">
                 {profile.titre}
               </p>
-              <p className="text-[13px] text-gray-500 leading-relaxed mb-4">
+              <p className="text-[13px] text-gray-500 leading-relaxed mb-3">
                 {profile.description}
               </p>
+              {PROFILE_METRICS[profile.id] && (
+                <div className="grid grid-cols-3 gap-2 bg-gray-50 rounded-xl p-3 mb-3">
+                  {[
+                    { label: 'Revenus nets', value: PROFILE_METRICS[profile.id].revenus },
+                    { label: 'Patrimoine net', value: PROFILE_METRICS[profile.id].patrimoine },
+                    { label: 'TMI', value: PROFILE_METRICS[profile.id].tmi },
+                  ].map(m => (
+                    <div key={m.label} className="text-center">
+                      <p className="text-[11px] text-gray-400 mb-0.5">{m.label}</p>
+                      <p className="text-[13px] font-semibold text-gray-800">{m.value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {profile.tags.map(tag => (
                   <span key={tag} className="text-[11px] bg-[#E6F1FB] text-[#0C447C] px-2 py-0.5 rounded-full font-medium">
