@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -231,11 +232,14 @@ function ChipSelector({ options, value, onChange, green = false }: {
   return (
     <div className="flex flex-wrap gap-2">
       {options.map(opt => (
-        <button key={opt} type="button" onClick={() => onChange(opt)}
-          className={`px-4 py-2 rounded-lg text-[13px] border transition-all ${
+        <motion.button key={opt} type="button" onClick={() => onChange(opt)}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          transition={{ duration: 0.15 }}
+          className={`px-4 py-2 rounded-lg text-[13px] border transition-colors ${
             value === opt ? active : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'
           }`}
-        >{opt}</button>
+        >{opt}</motion.button>
       ))}
     </div>
   )
@@ -522,14 +526,6 @@ function ConnaissanceFinanciereCard({ cf, onChange, isP2 = false, personneLabel,
         <div className={`w-1.5 h-1.5 rounded-full ${dot}`} />{personneLabel}
       </div>
 
-      {/* MiFID II badge */}
-      <div className="flex items-center gap-2 mb-5">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-300 bg-gray-100 px-2 py-0.5 rounded-md">
-          MiFID II
-        </span>
-        <span className="text-[11px] text-gray-400">Requis réglementairement</span>
-      </div>
-
       <div className="space-y-5">
         {/* Niveau général */}
         <Field label="Niveau de connaissance financière" error={errorNiveau}>
@@ -713,7 +709,7 @@ export default function Bloc1() {
           <div className="flex items-center gap-3 mb-4">
             <span className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">Étape 1 sur 7</span>
             <div className="flex-1 max-w-xs h-1 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-[#185FA5] rounded-full transition-all" style={{ width: '14%' }} />
+              <motion.div className="h-full bg-[#185FA5] rounded-full" initial={{ width: '0%' }} animate={{ width: '14%' }} transition={{ duration: 0.6, ease: 'easeOut' }} />
             </div>
             <span className="text-[11px] text-gray-300">14%</span>
             {savedAt && (
@@ -725,7 +721,7 @@ export default function Bloc1() {
           </div>
           <h1 className="text-[26px] font-semibold text-gray-900 tracking-tight">Profil civil & familial</h1>
           <p className="text-[14px] text-gray-400 mt-1.5 leading-relaxed max-w-xl">
-            Ces informations permettent de structurer l'analyse patrimoniale et de respecter le cadre réglementaire (KYC / MiFID II).
+            Ces informations permettent de structurer votre analyse patrimoniale et de personnaliser chaque recommandation.
           </p>
         </div>
 
@@ -1069,11 +1065,14 @@ export default function Bloc1() {
           >
             Enregistrer le brouillon
           </button>
-          <button type="button" onClick={handleSuivant}
+          <motion.button type="button" onClick={handleSuivant}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.15 }}
             className="text-[13px] text-white px-6 py-2 rounded-lg bg-[#185FA5] hover:bg-[#0C447C] transition-colors shadow-[0_2px_8px_rgba(24,95,165,0.3)] font-medium"
           >
             Suivant →
-          </button>
+          </motion.button>
         </div>
       </div>
     </div>

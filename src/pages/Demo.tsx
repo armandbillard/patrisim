@@ -1,5 +1,9 @@
-// src/data/DemoProfiles.ts
+// src/pages/Demo.tsx
 // Profils de démonstration — remplissent automatiquement le localStorage
+
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowRight } from 'lucide-react'
 
 export interface DemoProfile {
   id: string
@@ -547,4 +551,77 @@ export function loadDemoProfileWithCache(profileId: string, cachedResult: unknow
     }))
   }
   return true
+}
+
+// ─── Page Demo ────────────────────────────────────────────────────────────────
+
+export default function Demo() {
+  const navigate = useNavigate()
+  const [loading, setLoading] = useState<string | null>(null)
+
+  const handleSelect = (profileId: string) => {
+    setLoading(profileId)
+    loadDemoProfile(profileId)
+    setTimeout(() => navigate('/bloc1'), 600)
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F8F8F6]">
+      <div className="max-w-3xl mx-auto px-8 py-16">
+
+        <div className="mb-10">
+          <button type="button" onClick={() => navigate('/')}
+            className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors mb-6 flex items-center gap-1.5">
+            ← Retour
+          </button>
+          <h1 className="text-[28px] font-semibold text-gray-900 tracking-tight mb-2">
+            Choisir un profil de démonstration
+          </h1>
+          <p className="text-[14px] text-gray-400 leading-relaxed">
+            Sélectionnez un profil type pour explorer PatriSim avec des données pré-remplies.
+            Vous pourrez modifier toutes les valeurs librement.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {DEMO_PROFILES.map(profile => (
+            <button
+              key={profile.id}
+              type="button"
+              onClick={() => handleSelect(profile.id)}
+              disabled={loading !== null}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-left hover:border-[#185FA5]/30 hover:shadow-md transition-all group disabled:opacity-60"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <span className="text-3xl">{profile.emoji}</span>
+                {loading === profile.id && (
+                  <span className="text-[11px] text-[#185FA5] font-medium">Chargement...</span>
+                )}
+              </div>
+              <p className="text-[15px] font-semibold text-gray-900 mb-2 group-hover:text-[#185FA5] transition-colors">
+                {profile.titre}
+              </p>
+              <p className="text-[13px] text-gray-500 leading-relaxed mb-4">
+                {profile.description}
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {profile.tags.map(tag => (
+                  <span key={tag} className="text-[11px] bg-[#E6F1FB] text-[#0C447C] px-2 py-0.5 rounded-full font-medium">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5 text-[12px] text-[#185FA5] font-medium">
+                Charger ce profil <ArrowRight size={13} />
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <p className="text-[12px] text-gray-400 text-center mt-8">
+          Les données de démonstration sont chargées localement. Aucune information n'est transmise.
+        </p>
+      </div>
+    </div>
+  )
 }

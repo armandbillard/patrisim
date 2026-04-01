@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Shield, Brain, BarChart2, Lock, Star, Mail, GraduationCap } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 const PARCOURS = [
   { emoji: '📈', titre: 'Préparer ma retraite', desc: 'Pension estimée, capital nécessaire, actions concrètes pour combler les déficits.', duree: '5 à 12 min', dispo: true },
@@ -113,11 +114,14 @@ export default function Landing() {
         <p className="text-[14px] text-gray-400 text-center mb-10">4 disponibles maintenant · 4 prochainement</p>
         <div className="grid grid-cols-2 gap-4">
           {PARCOURS.map((p, i) => (
-            <div key={i} className={`rounded-2xl p-5 border transition-all ${
-              p.dispo
-                ? 'bg-white/5 border-white/10 hover:bg-white/8'
-                : 'bg-white/2 border-white/5 opacity-50'
-            }`}>
+            <motion.div key={i}
+              whileHover={p.dispo ? { y: -3, boxShadow: '0 8px 24px rgba(0,0,0,0.25)' } : {}}
+              transition={{ duration: 0.2 }}
+              className={`rounded-2xl p-5 border transition-colors ${
+                p.dispo
+                  ? 'bg-white/5 border-white/10'
+                  : 'bg-white/2 border-white/5 opacity-50'
+              }`}>
               <div className="flex items-start justify-between mb-3">
                 <span className="text-2xl">{p.emoji}</span>
                 {!p.dispo && (
@@ -133,7 +137,7 @@ export default function Landing() {
               <p className={`text-[14px] font-semibold mb-1 ${p.dispo ? 'text-white' : 'text-gray-500'}`}>{p.titre}</p>
               <p className={`text-[12px] leading-relaxed mb-3 ${p.dispo ? 'text-gray-400' : 'text-gray-600'}`}>{p.desc}</p>
               <span className="text-[11px] text-gray-500">⏱ {p.duree}</span>
-            </div>
+            </motion.div>
           ))}
         </div>
         <div className="text-center mt-8">
@@ -156,11 +160,14 @@ export default function Landing() {
             { icon: <ArrowRight size={20} />, title: 'Parcours adaptatif', desc: 'Répondez uniquement aux questions pertinentes selon vos objectifs.' },
             { icon: <Star size={20} />, title: 'Recommandations concrètes', desc: 'Plan d\'action priorisé avec impact estimé pour chaque recommandation.' },
           ].map(f => (
-            <div key={f.title} className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/8 transition-colors">
+            <motion.div key={f.title}
+              whileHover={{ y: -3, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
+              transition={{ duration: 0.2 }}
+              className="bg-white/5 border border-white/10 rounded-2xl p-5">
               <div className="w-9 h-9 rounded-xl bg-[#185FA5]/20 text-[#185FA5] flex items-center justify-center mb-4">{f.icon}</div>
               <p className="text-[14px] font-semibold mb-2">{f.title}</p>
               <p className="text-[12px] text-gray-400 leading-relaxed">{f.desc}</p>
-            </div>
+            </motion.div>
           ))}
         </div>
       </section>

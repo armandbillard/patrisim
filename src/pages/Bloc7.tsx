@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -467,7 +468,7 @@ export default function Bloc7() {
           <div className="flex items-center gap-3 mb-4">
             <span className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">Étape 7 sur 7</span>
             <div className="flex-1 max-w-xs h-1 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-[#185FA5] rounded-full" style={{ width: '100%' }} />
+              <motion.div className="h-full bg-[#185FA5] rounded-full" initial={{ width: '0%' }} animate={{ width: '100%' }} transition={{ duration: 0.6, ease: 'easeOut' }} />
             </div>
             <span className="text-[11px] text-[#0F6E56] font-semibold">100%</span>
             {savedAt && <span className="ml-auto text-[11px] text-gray-300 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />Brouillon enregistré · {savedAt}</span>}

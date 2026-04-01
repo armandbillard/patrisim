@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle, AlertTriangle, Info, BarChart2, TrendingUp, PieChart, DollarSign, Users, Settings, Mail, GraduationCap } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -120,7 +121,7 @@ function buildCompressedData(preCalc: ReturnType<typeof computePreCalculations>)
     revenus_mensuels: preCalc.totalRev,
     capacite_epargne: preCalc.capaciteEpargne,
     taux_endettement: preCalc.tauxEndettement,
-    tmi,
+    tmi: preCalc.tmi,
     taux_moyen: preCalc.tauxMoyen,
     pression_fiscale_annuelle: preCalc.pressionFiscale,
     annees_avant_retraite: preCalc.anneesAvantRetraite,
@@ -636,7 +637,10 @@ export default function Analyse() {
           <p className="text-[16px] font-bold text-gray-900 mb-4">Recommandations</p>
           <div className="space-y-3">
             {(r.recommandations || []).map((rec, i) => (
-              <div key={i} className={`bg-white rounded-2xl border border-gray-100 border-l-4 shadow-sm p-5 ${urgenceBorder[rec.urgence] || 'border-l-gray-300'}`}>
+              <motion.div key={i}
+                whileHover={{ y: -3, boxShadow: '0 6px 20px rgba(0,0,0,0.08)' }}
+                transition={{ duration: 0.2 }}
+                className={`bg-white rounded-2xl border border-gray-100 border-l-4 shadow-sm p-5 ${urgenceBorder[rec.urgence] || 'border-l-gray-300'}`}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${urgenceBadge[rec.urgence] || 'bg-gray-100 text-gray-600'}`}>
                     {urgenceLabel[rec.urgence] || rec.urgence}
@@ -647,7 +651,7 @@ export default function Analyse() {
                 {rec.gain_estime > 0 && (
                   <p className="text-[12px] text-[#0F6E56] font-semibold mt-2">Gain potentiel : {fmt(rec.gain_estime)} € par an</p>
                 )}
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -675,12 +679,15 @@ export default function Analyse() {
           <p className="text-[16px] font-bold text-gray-900 mb-4">Analyses détaillées</p>
           <div className="grid grid-cols-2 gap-4">
             {dashModules.map((m, i) => (
-              <button key={i} type="button" onClick={() => navigate(m.path)}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-left hover:border-[#185FA5]/30 hover:shadow-md transition-all group">
-                <div className="text-[#185FA5] group-hover:text-[#0C447C] transition-colors mb-3">{m.icon}</div>
+              <motion.button key={i} type="button" onClick={() => navigate(m.path)}
+                whileHover={{ y: -3, boxShadow: '0 6px 20px rgba(0,0,0,0.08)' }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.2 }}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-left">
+                <div className="text-[#185FA5] mb-3">{m.icon}</div>
                 <p className="text-[14px] font-semibold text-gray-800 mb-0.5">{m.title}</p>
                 <p className="text-[12px] text-gray-400">{m.desc}</p>
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
