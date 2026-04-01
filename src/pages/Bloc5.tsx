@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { getNextBloc } from '../utils/navigation'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -545,12 +546,9 @@ export default function Bloc5() {
 
   // ── Validation ─────────────────────────────────────────────────────────────
   const handleSuivant = () => {
-    const e: Record<string, string> = {}
-    if (!state.retraiteP1.revenusCibles) e.revenusCiblesP1 = 'Veuillez définir un objectif de revenus à la retraite'
-    if (isCouple && !state.retraiteP2.revenusCibles) e.revenusCiblesP2 = 'Veuillez définir un objectif de revenus à la retraite'
-    if (Object.keys(e).length > 0) { setErrors(e); return }
+    setErrors({})
     setToast(true)
-    setTimeout(() => navigate('/bloc6'), 1200)
+    setTimeout(() => navigate(getNextBloc(5)), 1200)
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -803,7 +801,7 @@ export default function Bloc5() {
               </ResponsiveContainer>
             </div>
 
-            <button type="button" onClick={() => navigate('/bloc6')}
+            <button type="button" onClick={() => navigate(getNextBloc(5))}
               className="w-full py-4 rounded-2xl bg-[#185FA5] text-white text-[14px] font-semibold hover:bg-[#0C447C] transition-colors shadow-[0_4px_14px_rgba(24,95,165,0.25)]">
               Confirmer et passer au Bloc 6 — Profil investisseur →
             </button>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle, Info } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { getNextBloc } from '../utils/navigation'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,7 +174,7 @@ export default function Bloc6() {
     if (!allAnswered) e.push('Répondez aux 7 questions MiFID II')
     if (e.length > 0) { setErrors(e); return }
     setToast(true)
-    setTimeout(() => navigate('/bloc7'), 1200)
+    setTimeout(() => navigate(getNextBloc(6)), 1200)
   }
 
   return (

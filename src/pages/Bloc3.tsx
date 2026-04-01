@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { motion } from 'framer-motion'
+import { getNextBloc } from '../utils/navigation'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -325,6 +326,8 @@ export default function Bloc3() {
   // Lire données Bloc 1 et Bloc 2
   const p1Data = loadFromStorage<{ prenom?: string }>('patrisim_bloc1_p1', {})
   const p2Data = loadFromStorage<{ prenom?: string }>('patrisim_bloc1_p2', {})
+  const modeData = loadFromStorage<{ v?: string }>('patrisim_bloc1_mode', {})
+  const isCouple = modeData.v === 'couple'
   const p1Label = p1Data.prenom?.trim() || 'Personne 1'
   const p2Label = p2Data.prenom?.trim() || 'Personne 2'
 
@@ -462,7 +465,7 @@ export default function Bloc3() {
               <p className="font-semibold mb-1">Aucune dette déclarée.</p>
               <p>Votre patrimoine net = patrimoine brut.</p>
             </InfoCard>
-            <button type="button" onClick={() => navigate('/bloc4')}
+            <button type="button" onClick={() => navigate(getNextBloc(3))}
               className="mt-4 w-full py-4 rounded-2xl bg-[#185FA5] text-white text-[14px] font-semibold hover:bg-[#0C447C] transition-colors shadow-[0_4px_14px_rgba(24,95,165,0.25)]">
               Confirmer et passer au Bloc 4 →
             </button>
@@ -601,7 +604,7 @@ export default function Bloc3() {
                         </Field>
 
                         <Field label="Emprunteur(s)">
-                          <Chips options={[`${p1Label} seul`, `${p2Label} seul`, 'Les deux']}
+                          <Chips options={isCouple ? [`${p1Label} seul`, `${p2Label} seul`, 'Les deux'] : [`${p1Label} seul`]}
                             value={c.emprunteurs} onChange={v => updateCI(c.id, { ...c, emprunteurs: v as string })} />
                         </Field>
                         {c.emprunteurs === 'Les deux' && (
@@ -654,7 +657,7 @@ export default function Bloc3() {
                           </Field>
                         </div>
                         <Field label="Emprunteur">
-                          <Chips options={[p1Label, p2Label, 'Les deux']} value={c.emprunteur} onChange={v => updateCC(c.id, { ...c, emprunteur: v as string })} />
+                          <Chips options={isCouple ? [p1Label, p2Label, 'Les deux'] : [p1Label]} value={c.emprunteur} onChange={v => updateCC(c.id, { ...c, emprunteur: v as string })} />
                         </Field>
                       </CardWrap>
                     )
@@ -692,7 +695,7 @@ export default function Bloc3() {
                           </Field>
                         )}
                         <Field label="Date de fin"><Input type="date" value={p.dateFin} onChange={v => updatePE(p.id, { ...p, dateFin: v })} /></Field>
-                        <Field label="Emprunteur"><Chips options={[p1Label, p2Label]} value={p.emprunteur} onChange={v => updatePE(p.id, { ...p, emprunteur: v as string })} /></Field>
+                        <Field label="Emprunteur"><Chips options={isCouple ? [p1Label, p2Label] : [p1Label]} value={p.emprunteur} onChange={v => updatePE(p.id, { ...p, emprunteur: v as string })} /></Field>
                       </CardWrap>
                     )
                   })}
@@ -728,7 +731,7 @@ export default function Bloc3() {
                           <InfoCard color="amber">Un découvert structurel peut indiquer un déséquilibre budgétaire. Ce point sera analysé dans votre bilan.</InfoCard>
                         )}
                         <Field label="Titulaire">
-                          <Chips options={[p1Label, p2Label, 'Joint']} value={d.titulaire} onChange={v => updateDB(d.id, { ...d, titulaire: v as string })} />
+                          <Chips options={isCouple ? [p1Label, p2Label, 'Joint'] : [p1Label]} value={d.titulaire} onChange={v => updateDB(d.id, { ...d, titulaire: v as string })} />
                         </Field>
                       </CardWrap>
                     )
@@ -901,7 +904,7 @@ export default function Bloc3() {
                   </div>
                 )}
 
-                <button type="button" onClick={() => navigate('/bloc4')}
+                <button type="button" onClick={() => navigate(getNextBloc(3))}
                   className="w-full py-4 rounded-2xl bg-[#185FA5] text-white text-[14px] font-semibold hover:bg-[#0C447C] transition-colors shadow-[0_4px_14px_rgba(24,95,165,0.25)]">
                   Confirmer et passer au Bloc 4 — Flux & fiscalité →
                 </button>
@@ -931,7 +934,7 @@ export default function Bloc3() {
         <button type="button" onClick={() => navigate('/bloc2')} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors">← Retour</button>
         <div className="flex items-center gap-3">
           {savedAt && <span className="text-[11px] text-gray-300 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />Brouillon enregistré · {savedAt}</span>}
-          <button type="button" onClick={() => navigate('/bloc4')}
+          <button type="button" onClick={() => navigate(getNextBloc(3))}
             className="text-[13px] text-white px-6 py-2 rounded-lg bg-[#185FA5] hover:bg-[#0C447C] transition-colors shadow-[0_2px_8px_rgba(24,95,165,0.3)] font-medium">
             Suivant →
           </button>

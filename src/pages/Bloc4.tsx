@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Upload, CheckCircle, AlertTriangle, X, ArrowDown, ArrowUp } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { getNextBloc } from '../utils/navigation'
 import SyntheseButton from '../components/SyntheseButton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -338,7 +339,7 @@ export default function Bloc4() {
     if(isCouple&&!state.p2Pro.salaire&&!state.p2Pro.remunNette) e.push(`Renseignez le revenu de ${p2Label}`)
     if(e.length){setErrors(e);return}
     setToast(true)
-    setTimeout(()=>navigate('/bloc5'),1200)
+    setTimeout(()=>navigate(getNextBloc(4)),1200)
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────

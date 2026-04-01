@@ -199,7 +199,15 @@ Retourne exactement ce JSON :
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start === -1 || end === -1) throw new Error('JSON introuvable')
-  return JSON.parse(text.substring(start, end + 1)) as AIResult
+  // Nettoyage : supprimer les caractères de contrôle invisibles (sauf \n \r \t valides en JSON)
+  const cleaned = text.substring(start, end + 1).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+  try {
+    return JSON.parse(cleaned) as AIResult
+  } catch (e) {
+    console.error('[PatriSim] Erreur parsing JSON IA:', e)
+    console.error('[PatriSim] Texte brut reçu:', text)
+    return {} as AIResult
+  }
 }
 
 // ─── Composants UI ────────────────────────────────────────────────────────────

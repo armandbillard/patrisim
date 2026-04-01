@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { motion } from 'framer-motion'
+import { getNextBloc } from '../utils/navigation'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -588,31 +589,43 @@ function OrigineSliders({ origine, onChange }: { origine: OriginePatrimoine; onC
   ]
   const total = Object.values(origine).reduce((a, b) => a + b, 0)
   const isComplete = total === 100
+  const restant = 100 - total
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
       <h3 className="text-[15px] font-semibold text-gray-800 mb-1">Comment votre patrimoine s'est-il constitué ?</h3>
       <p className="text-[12px] text-gray-400 mb-5">Répartissez en % — le total doit atteindre 100%</p>
       <div className="space-y-4">
-        {items.map(({ key, label }) => (
-          <div key={key}>
-            <div className="flex justify-between mb-1">
-              <span className="text-[12px] text-gray-600">{label}</span>
-              <span className="text-[12px] font-semibold text-[#185FA5]">{origine[key]}%</span>
+        {items.map(({ key, label }) => {
+          const maxVal = Math.max(0, origine[key] + restant)
+          return (
+            <div key={key}>
+              <div className="flex justify-between mb-1">
+                <span className="text-[12px] text-gray-600">{label}</span>
+                <span className="text-[12px] font-semibold text-[#185FA5]">{origine[key]}%</span>
+              </div>
+              <input type="range" min={0} max={maxVal} value={origine[key]}
+                onChange={e => onChange({ ...origine, [key]: Number(e.target.value) })}
+                className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#185FA5]"
+              />
             </div>
-            <input type="range" min={0} max={100} value={origine[key]}
-              onChange={e => onChange({ ...origine, [key]: Number(e.target.value) })}
-              className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#185FA5]"
-            />
-          </div>
-        ))}
+          )
+        })}
       </div>
       <div className="mt-5">
         <div className="flex justify-between text-[12px] mb-2">
           <span className="text-gray-500">Total</span>
-          <span className={`font-bold ${isComplete ? 'text-[#0F6E56]' : total > 100 ? 'text-red-600' : 'text-amber-600'}`}>{total}% {!isComplete && `— il ${total > 100 ? 'faut retirer' : 'manque'} ${Math.abs(100 - total)}%`}</span>
+          <span className={`font-bold ${isComplete ? 'text-[#0F6E56]' : 'text-amber-600'}`}>
+            {total}%
+          </span>
+        </div>
+        <div className="flex justify-between text-[12px] mb-2">
+          <span className="text-gray-400">Répartition restante</span>
+          <span className={`font-semibold ${isComplete ? 'text-[#0F6E56]' : 'text-amber-600'}`}>
+            {restant}%
+          </span>
         </div>
         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full transition-all ${isComplete ? 'bg-[#0F6E56]' : total > 100 ? 'bg-red-500' : 'bg-[#185FA5]'}`} style={{ width: `${Math.min(total, 100)}%` }} />
+          <div className={`h-full rounded-full transition-all ${isComplete ? 'bg-[#0F6E56]' : 'bg-[#185FA5]'}`} style={{ width: `${Math.min(total, 100)}%` }} />
         </div>
       </div>
     </div>
@@ -626,11 +639,14 @@ export default function Bloc2() {
   const foyer1 = loadFromStorage<{ regimeMatrimonial?: string; statutMatrimonial?: string }>('patrisim_bloc1_foyer', {})
   const p1Data = loadFromStorage<{ prenom?: string }>('patrisim_bloc1_p1', {})
   const p2Data = loadFromStorage<{ prenom?: string }>('patrisim_bloc1_p2', {})
+  const modeData = loadFromStorage<{ v?: string }>('patrisim_bloc1_mode', {})
+  const isCouple = modeData.v === 'couple'
   const p1Label = p1Data.prenom?.trim() || 'Personne 1'
   const p2Label = p2Data.prenom?.trim() || 'Personne 2'
   const regimeMatrimonial = foyer1.regimeMatrimonial ?? ''
   const statutMatrimonial = foyer1.statutMatrimonial ?? ''
-  const titulairesOptions = [p1Label, p2Label, 'Joint']
+  const titulairesOptions = isCouple ? [p1Label, p2Label, 'Joint'] : [p1Label]
+  const titulairesP1P2 = isCouple ? [p1Label, p2Label] : [p1Label]
 
   const [state, setState] = useState<Bloc2State>(() => loadFromStorage('patrisim_bloc2', defaultState()))
   const [savedAt, setSavedAt] = useState<string>('')
@@ -892,7 +908,7 @@ export default function Bloc2() {
                 return (
                   <CardWrap key={p.id} title={p.etablissement || 'PEA'} subtitle={valeur > 0 ? `${fmt(valeur)} €` : undefined} onRemove={() => removePea(p.id)}>
                     <div className="grid grid-cols-2 gap-4">
-                      <Field label="Titulaire"><Chips options={[p1Label, p2Label]} value={p.titulaire} onChange={v => updatePea(p.id, { ...p, titulaire: v as string })} /></Field>
+                      <Field label="Titulaire"><Chips options={titulairesP1P2} value={p.titulaire} onChange={v => updatePea(p.id, { ...p, titulaire: v as string })} /></Field>
                       <Field label="Établissement"><Input value={p.etablissement} onChange={v => updatePea(p.id, { ...p, etablissement: v })} placeholder="Bourse Direct" /></Field>
                     </div>
                     <Field label="Date d'ouverture">
@@ -1041,7 +1057,7 @@ export default function Bloc2() {
                     )}
                     <Field label="Avances ou rachats partiels ?"><Toggle value={av.avancesRachats} onChange={v => updateAv(av.id, { ...av, avancesRachats: v })} /></Field>
                     {av.avancesRachats && <Field label="Montant total racheté"><Input value={av.montantRachete} onChange={v => updateAv(av.id, { ...av, montantRachete: v })} placeholder="0" suffix="€" /></Field>}
-                    <Field label="Titulaire"><Chips options={[p1Label, p2Label]} value={av.titulaire} onChange={v => updateAv(av.id, { ...av, titulaire: v as string })} /></Field>
+                    <Field label="Titulaire"><Chips options={titulairesP1P2} value={av.titulaire} onChange={v => updateAv(av.id, { ...av, titulaire: v as string })} /></Field>
                   </CardWrap>
                 )
               })}
@@ -1094,7 +1110,7 @@ export default function Bloc2() {
                         </Field>
                       </div>
                     )}
-                    <Field label="Titulaire"><Chips options={[p1Label, p2Label]} value={p.titulaire} onChange={v => updatePer(p.id, { ...p, titulaire: v as string })} /></Field>
+                    <Field label="Titulaire"><Chips options={titulairesP1P2} value={p.titulaire} onChange={v => updatePer(p.id, { ...p, titulaire: v as string })} /></Field>
                   </CardWrap>
                 )
               })}
@@ -1123,7 +1139,7 @@ export default function Bloc2() {
                   </div>
                   <Field label="Disponibilité"><Chips options={['Disponible', 'Bloqué']} value={e.disponibilite} onChange={v => updateES(i, { ...e, disponibilite: v as string })} /></Field>
                   {e.disponibilite === 'Bloqué' && <Field label="Date de déblocage"><Input type="date" value={e.dateDeblocage} onChange={v => updateES(i, { ...e, dateDeblocage: v })} /></Field>}
-                  <Field label="Titulaire"><Chips options={[p1Label, p2Label]} value={e.titulaire} onChange={v => updateES(i, { ...e, titulaire: v as string })} /></Field>
+                  <Field label="Titulaire"><Chips options={titulairesP1P2} value={e.titulaire} onChange={v => updateES(i, { ...e, titulaire: v as string })} /></Field>
                 </CardWrap>
               ))}
               <AddBtn onClick={addES} label="Ajouter une épargne salariale" />
@@ -1424,7 +1440,7 @@ export default function Bloc2() {
               </div>
             )}
 
-            <button type="button" onClick={() => navigate('/bloc3')}
+            <button type="button" onClick={() => navigate(getNextBloc(2))}
               className="w-full py-4 rounded-2xl bg-[#185FA5] text-white text-[14px] font-semibold hover:bg-[#0C447C] transition-colors shadow-[0_4px_14px_rgba(24,95,165,0.25)]">
               Confirmer et passer au Bloc 3 — Passif & dettes →
             </button>
@@ -1453,7 +1469,7 @@ export default function Bloc2() {
         <button type="button" onClick={() => navigate('/bloc1')} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors">← Retour</button>
         <div className="flex items-center gap-3">
           {savedAt && <span className="text-[11px] text-gray-300 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />Brouillon enregistré · {savedAt}</span>}
-          <button type="button" onClick={() => navigate('/bloc3')}
+          <button type="button" onClick={() => navigate(getNextBloc(2))}
             className="text-[13px] text-white px-6 py-2 rounded-lg bg-[#185FA5] hover:bg-[#0C447C] transition-colors shadow-[0_2px_8px_rgba(24,95,165,0.3)] font-medium">
             Suivant →
           </button>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { getNextBloc } from '../utils/navigation'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -661,18 +662,11 @@ export default function Bloc1() {
   const validate = (): boolean => {
     const e: Errors = {}
     if (!p1.prenom.trim()) e.p1Prenom = 'Ce champ est requis'
-    if (!p1.nom.trim()) e.p1Nom = 'Ce champ est requis'
     if (!p1.dateNaissance) e.p1Date = 'Ce champ est requis'
     if (isCouple) {
       if (!p2.prenom.trim()) e.p2Prenom = 'Ce champ est requis'
-      if (!p2.nom.trim()) e.p2Nom = 'Ce champ est requis'
       if (!p2.dateNaissance) e.p2Date = 'Ce champ est requis'
     }
-    if (!foyer.statutMatrimonial) e.statutMatrimonial = 'Ce champ est requis'
-    if (!pro1.statut) e.pro1Statut = 'Ce champ est requis'
-    if (isCouple && !pro2.statut) e.pro2Statut = 'Ce champ est requis'
-    if (!cf1.niveauGeneral) e.cf1Niveau = 'Ce champ est requis'
-    if (isCouple && !cf2.niveauGeneral) e.cf2Niveau = 'Ce champ est requis'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -687,7 +681,7 @@ export default function Bloc1() {
       return
     }
     setShowToast(true)
-    setTimeout(() => navigate('/bloc2'), 1200)
+    setTimeout(() => navigate(getNextBloc(1)), 1200)
   }
 
   const handleAnnuler = () => {
