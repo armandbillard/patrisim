@@ -1,6 +1,24 @@
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Shield, Brain, BarChart2, Lock, Star, Mail, GraduationCap } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, type Variants } from 'framer-motion'
+import FadeIn from '../components/FadeIn'
+
+const heroVariants: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.1 } },
+}
+const heroItem: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
+}
+const staggerContainer: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.07 } },
+}
+const staggerItem: Variants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
+}
 
 const PARCOURS = [
   { emoji: '📈', titre: 'Préparer ma retraite', desc: 'Pension estimée, capital nécessaire, actions concrètes pour combler les déficits.', duree: '5 à 12 min', dispo: true },
@@ -34,35 +52,44 @@ export default function Landing() {
       </nav>
 
       {/* Hero */}
-      <section className="pt-32 pb-16 px-8 text-center max-w-4xl mx-auto">
-        <div className="inline-flex items-center gap-2 text-[11px] text-[#185FA5] border border-[#185FA5]/30 bg-[#185FA5]/10 px-4 py-1.5 rounded-full mb-8">
+      <motion.section
+        variants={heroVariants}
+        initial="hidden"
+        animate="show"
+        className="pt-32 pb-16 px-8 text-center max-w-4xl mx-auto"
+      >
+        <motion.div variants={heroItem} className="inline-flex items-center gap-2 text-[11px] text-[#185FA5] border border-[#185FA5]/30 bg-[#185FA5]/10 px-4 py-1.5 rounded-full mb-8">
           <Star size={11} />
           Simulation patrimoniale intelligente · Propulsé par IA
-        </div>
+        </motion.div>
 
-        <h1 className="text-[52px] font-bold leading-tight tracking-tight mb-6">
+        <motion.h1 variants={heroItem} className="text-[52px] font-bold leading-tight tracking-tight mb-6">
           Votre patrimoine,<br />
           <span className="text-[#185FA5]">analysé intelligemment</span>
-        </h1>
+        </motion.h1>
 
-        <p className="text-[17px] text-gray-400 max-w-xl mx-auto leading-relaxed mb-10">
+        <motion.p variants={heroItem} className="text-[17px] text-gray-400 max-w-xl mx-auto leading-relaxed mb-10">
           PatriSim vous guide à travers une analyse patrimoniale complète : retraite, impôts, succession, investissements. En quelques minutes.
-        </p>
+        </motion.p>
 
-        <div className="flex flex-col items-center gap-4">
-          <button type="button" onClick={() => navigate('/start')}
-            className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-[#185FA5] hover:bg-[#0C447C] text-[15px] font-bold transition-all shadow-[0_8px_30px_rgba(24,95,165,0.4)] hover:-translate-y-0.5">
+        <motion.div variants={heroItem} className="flex flex-col items-center gap-4">
+          <motion.button
+            type="button" onClick={() => navigate('/start')}
+            whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+            className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-[#185FA5] hover:bg-[#0C447C] text-[15px] font-bold transition-colors shadow-[0_8px_30px_rgba(24,95,165,0.4)]">
             Commencer mon analyse <ArrowRight size={18} />
-          </button>
+          </motion.button>
           <button type="button" onClick={() => navigate('/demo')}
             className="text-[13px] text-gray-400 hover:text-white transition-colors underline underline-offset-4">
             Voir une démonstration avec un profil type
           </button>
           <p className="text-[12px] text-gray-500">Sans inscription · 100% confidentiel · Résultats en moins de 2 minutes</p>
-        </div>
-      </section>
+        </motion.div>
+      </motion.section>
 
       {/* Bloc Armand — mis en avant, après le hero */}
+      <FadeIn delay={0.1}>
       <section className="px-8 pb-12 max-w-4xl mx-auto">
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
           <div className="flex items-center justify-between gap-6">
@@ -93,28 +120,37 @@ export default function Landing() {
           </div>
         </div>
       </section>
+      </FadeIn>
 
       {/* Stats */}
       <section className="py-10 border-y border-white/5">
-        <div className="max-w-4xl mx-auto px-8 grid grid-cols-4 gap-6 text-center">
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true }}
+          className="max-w-4xl mx-auto px-8 grid grid-cols-4 gap-6 text-center"
+        >
           {[
             { n: '4', l: 'parcours disponibles' },
             { n: '7', l: 'blocs d\'analyse' },
             { n: '30+', l: 'simulateurs' },
             { n: '100%', l: 'confidentiel' },
           ].map(({ n, l }) => (
-            <div key={l}>
+            <motion.div key={l} variants={staggerItem}>
               <p className="text-[32px] font-bold text-[#185FA5]">{n}</p>
               <p className="text-[12px] text-gray-400 mt-1">{l}</p>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* 8 parcours */}
       <section className="py-20 px-8 max-w-4xl mx-auto">
-        <h2 className="text-[28px] font-bold text-center mb-3">8 parcours patrimoniaux</h2>
-        <p className="text-[14px] text-gray-400 text-center mb-10">4 disponibles maintenant · 4 prochainement</p>
+        <FadeIn>
+          <h2 className="text-[28px] font-bold text-center mb-3">8 parcours patrimoniaux</h2>
+          <p className="text-[14px] text-gray-400 text-center mb-10">4 disponibles maintenant · 4 prochainement</p>
+        </FadeIn>
         <div className="grid grid-cols-2 gap-4">
           {PARCOURS.map((p, i) => (
             <motion.div key={i}
@@ -153,8 +189,16 @@ export default function Landing() {
 
       {/* Fonctionnalités */}
       <section className="py-16 px-8 max-w-4xl mx-auto">
-        <h2 className="text-[28px] font-bold text-center mb-12">Tout ce dont vous avez besoin</h2>
-        <div className="grid grid-cols-3 gap-4">
+        <FadeIn>
+          <h2 className="text-[28px] font-bold text-center mb-12">Tout ce dont vous avez besoin</h2>
+        </FadeIn>
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true }}
+          className="grid grid-cols-3 gap-4"
+        >
           {[
             { icon: <Brain size={20} />, title: 'Analyse IA personnalisée', desc: 'L\'IA analyse votre profil et génère un bilan patrimonial sur-mesure en langage simple.' },
             { icon: <BarChart2 size={20} />, title: 'Dashboard interactif', desc: '6 modules : bilan, retraite, portefeuille, impôts, succession, objectifs.' },
@@ -164,15 +208,15 @@ export default function Landing() {
             { icon: <Star size={20} />, title: 'Recommandations concrètes', desc: 'Plan d\'action priorisé avec impact estimé pour chaque recommandation.' },
           ].map(f => (
             <motion.div key={f.title}
+              variants={staggerItem}
               whileHover={{ y: -3, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
-              transition={{ duration: 0.2 }}
               className="bg-white/5 border border-white/10 rounded-2xl p-5">
               <div className="w-9 h-9 rounded-xl bg-[#185FA5]/20 text-[#185FA5] flex items-center justify-center mb-4">{f.icon}</div>
               <p className="text-[14px] font-semibold mb-2">{f.title}</p>
               <p className="text-[12px] text-gray-400 leading-relaxed">{f.desc}</p>
             </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* CTA final */}

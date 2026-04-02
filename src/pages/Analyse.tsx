@@ -1,7 +1,39 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle, AlertTriangle, Info, BarChart2, TrendingUp, PieChart, DollarSign, Users, Settings, Mail, GraduationCap } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence, type Variants } from 'framer-motion'
+import FadeIn from '../components/FadeIn'
+
+const sectionVariants: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+}
+const sectionItem: Variants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
+}
+const recVariants: Variants = {
+  hidden: { opacity: 0, x: -16 },
+  show: (i: number) => ({ opacity: 1, x: 0, transition: { duration: 0.35, delay: i * 0.08, ease: 'easeOut' } }),
+}
+
+function useAnimatedCounter(target: number, duration = 1200) {
+  const [value, setValue] = useState(0)
+  const startRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (target === 0) { setValue(0); return }
+    startRef.current = null
+    const step = (ts: number) => {
+      if (!startRef.current) startRef.current = ts
+      const progress = Math.min((ts - startRef.current) / duration, 1)
+      setValue(Math.round(progress * target))
+      if (progress < 1) requestAnimationFrame(step)
+    }
+    const id = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(id)
+  }, [target, duration])
+  return value
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -237,11 +269,15 @@ function MetricCard({ label, value, sub, color }: { label: string; value: string
   }
   const textStyles = { blue: 'text-[#0C447C]', green: 'text-[#085041]', amber: 'text-amber-800', red: 'text-red-700' }
   return (
-    <div className={`rounded-2xl border p-4 ${styles[color]}`}>
+    <motion.div
+      whileHover={{ y: -4, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}
+      whileTap={{ scale: 0.97 }}
+      transition={{ duration: 0.2 }}
+      className={`rounded-2xl border p-4 ${styles[color]}`}>
       <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{label}</p>
       <p className={`text-[20px] font-bold ${textStyles[color]}`}>{value}</p>
       <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>
-    </div>
+    </motion.div>
   )
 }
 
@@ -409,10 +445,15 @@ export default function Analyse() {
 
   return (
     <div className="min-h-screen bg-[#F8F8F6]">
-      <div className="max-w-4xl mx-auto px-8 py-10 pb-16 space-y-6">
+      <motion.div
+        variants={sectionVariants}
+        initial="hidden"
+        animate="show"
+        className="max-w-4xl mx-auto px-8 py-10 pb-16 space-y-6"
+      >
 
         {/* ── Bloc Armand — EN HAUT, bien visible ── */}
-        <div className="bg-white rounded-2xl border border-[#185FA5]/20 shadow-sm p-5">
+        <motion.div variants={sectionItem} className="bg-white rounded-2xl border border-[#185FA5]/20 shadow-sm p-5">
           <div className="flex items-center justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-xl bg-[#E6F1FB] flex items-center justify-center flex-shrink-0">
@@ -435,10 +476,10 @@ export default function Analyse() {
               Me contacter
             </a>
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Header analyse ── */}
-        <div className="flex items-start justify-between">
+        <motion.div variants={sectionItem} className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="w-2 h-2 rounded-full bg-[#0F6E56]" />
@@ -449,18 +490,18 @@ export default function Analyse() {
             <h1 className="text-[28px] font-bold text-gray-900 tracking-tight">Votre bilan patrimonial</h1>
             <p className="text-[12px] text-gray-400 mt-1">Généré le {dateStr}</p>
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Disclaimer pédagogique ── */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
+        <motion.div variants={sectionItem} className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
           <p className="text-[12px] text-amber-800 leading-relaxed">
             <strong>Outil pédagogique :</strong> PatriSim vous permet de mieux comprendre votre situation patrimoniale et vos perspectives d'évolution.
             Les analyses sont des estimations basées sur vos informations et ne remplacent pas un accompagnement personnalisé avec un conseiller en gestion de patrimoine.
           </p>
-        </div>
+        </motion.div>
 
         {/* ── Métriques clés ── */}
-        <div className="grid grid-cols-3 gap-3">
+        <motion.div variants={sectionItem} className="grid grid-cols-3 gap-3">
           <MetricCard
             label="Patrimoine net"
             value={`${fmt(c.patrimoineNet)} €`}
@@ -479,11 +520,11 @@ export default function Analyse() {
             sub={c.tauxEndettement < 33 ? 'Niveau sain' : c.tauxEndettement < 40 ? 'Limite acceptable' : 'Trop élevé'}
             color={c.tauxEndettement < 33 ? 'green' : c.tauxEndettement < 40 ? 'amber' : 'red'}
           />
-        </div>
+        </motion.div>
 
         {/* ── Métriques fiscales ── */}
         {c.tmi > 0 && (
-          <div className="grid grid-cols-3 gap-3">
+          <motion.div variants={sectionItem} className="grid grid-cols-3 gap-3">
             <MetricCard
               label="Tranche d'imposition"
               value={`${c.tmi}%`}
@@ -504,12 +545,12 @@ export default function Analyse() {
                 color="green"
               />
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* ── Retraite ── */}
         {c.anneesAvantRetraite > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <motion.div variants={sectionItem} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <p className="text-[13px] font-semibold text-gray-800 mb-4">Simulation retraite</p>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
@@ -532,11 +573,11 @@ export default function Analyse() {
                 </p>
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* ── Score + phrase bilan ── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <motion.div variants={sectionItem} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center gap-8 mb-4">
             <ScoreGauge score={r.score_global} />
             <div>
@@ -548,10 +589,10 @@ export default function Analyse() {
           <div className="bg-[#E6F1FB] border border-[#185FA5]/20 rounded-xl px-5 py-3">
             <p className="text-[14px] text-[#0C447C] italic font-medium">"{r.phrase_bilan}"</p>
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Synthèse 3 colonnes ── */}
-        <div className="grid grid-cols-3 gap-4">
+        <motion.div variants={sectionItem} className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F6E56] mb-2">Points forts</p>
             {(r.points_forts || []).map((p, i) => (
@@ -579,10 +620,10 @@ export default function Analyse() {
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Objectif + plan d'action ── */}
-        <div className="bg-white rounded-2xl border-2 border-[#185FA5]/30 shadow-sm p-6 space-y-4">
+        <motion.div variants={sectionItem} className="bg-white rounded-2xl border-2 border-[#185FA5]/30 shadow-sm p-6 space-y-4">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Votre objectif</p>
@@ -602,8 +643,12 @@ export default function Analyse() {
               <span>{r.probabilite_succes}%</span>
             </div>
             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full transition-all ${r.probabilite_succes >= 70 ? 'bg-[#0F6E56]' : r.probabilite_succes >= 40 ? 'bg-amber-500' : 'bg-red-500'}`}
-                style={{ width: `${r.probabilite_succes}%` }} />
+              <motion.div
+                initial={{ width: '0%' }}
+                animate={{ width: `${r.probabilite_succes}%` }}
+                transition={{ duration: 1, ease: 'easeOut', delay: 0.4 }}
+                className={`h-full rounded-full ${r.probabilite_succes >= 70 ? 'bg-[#0F6E56]' : r.probabilite_succes >= 40 ? 'bg-amber-500' : 'bg-red-500'}`}
+              />
             </div>
           </div>
 
@@ -638,14 +683,18 @@ export default function Analyse() {
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Recommandations ── */}
-        <div>
+        <motion.div variants={sectionItem}>
           <p className="text-[16px] font-bold text-gray-900 mb-4">Recommandations</p>
           <div className="space-y-3">
             {(r.recommandations || []).map((rec, i) => (
               <motion.div key={i}
+                custom={i}
+                variants={recVariants}
+                initial="hidden"
+                animate="show"
                 whileHover={{ y: -3, boxShadow: '0 6px 20px rgba(0,0,0,0.08)' }}
                 transition={{ duration: 0.2 }}
                 className={`bg-white rounded-2xl border border-gray-100 border-l-4 shadow-sm p-5 ${urgenceBorder[rec.urgence] || 'border-l-gray-300'}`}>
@@ -662,11 +711,11 @@ export default function Analyse() {
               </motion.div>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Alertes ── */}
         {(r.alertes || []).length > 0 && (
-          <div>
+          <motion.div variants={sectionItem}>
             <p className="text-[16px] font-bold text-gray-900 mb-4">Points de vigilance</p>
             <div className="space-y-3">
               {r.alertes.map((al, i) => (
@@ -679,11 +728,11 @@ export default function Analyse() {
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* ── Modules dashboard ── */}
-        <div>
+        <motion.div variants={sectionItem}>
           <p className="text-[16px] font-bold text-gray-900 mb-4">Analyses détaillées</p>
           <div className="grid grid-cols-2 gap-4">
             {dashModules.map((m, i) => (
@@ -698,10 +747,10 @@ export default function Analyse() {
               </motion.button>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Footer ── */}
-        <div className="space-y-3">
+        <motion.div variants={sectionItem} className="space-y-3">
           <button type="button" onClick={() => navigate('/start')}
             className="w-full py-3 rounded-xl border border-gray-200 text-[13px] text-gray-500 hover:bg-gray-50 transition-colors">
             Modifier mon profil
@@ -710,9 +759,9 @@ export default function Analyse() {
             PatriSim est un outil de simulation pédagogique. Les résultats sont des estimations et ne constituent pas un conseil en investissement.
             Consultez un conseiller en gestion de patrimoine pour toute décision financière importante.
           </p>
-        </div>
+        </motion.div>
 
-      </div>
+      </motion.div>
     </div>
   )
 }

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { getNextBloc } from '../utils/navigation'
+import FadeIn from '../components/FadeIn'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -577,6 +578,7 @@ export default function Bloc5() {
         </div>
 
         {/* ══ A — RETRAITE ══════════════════════════════════════════════════ */}
+        <FadeIn delay={0}>
         <SectionTitle>A — Retraite</SectionTitle>
         {isCouple ? (
           <div className="grid grid-cols-2 gap-4 mb-8">
@@ -595,7 +597,10 @@ export default function Bloc5() {
           </div>
         )}
 
+        </FadeIn>
+
         {/* ══ B — PROJETS ══════════════════════════════════════════════════ */}
+        <FadeIn delay={0.08}>
         <SectionTitle>B — Projets à financer</SectionTitle>
         <div className="mb-8">
           <Field label="Avez-vous des projets à financer ?">
@@ -641,7 +646,10 @@ export default function Bloc5() {
           )}
         </div>
 
+        </FadeIn>
+
         {/* ══ C — ÉPARGNE & EFFORT FUTUR ═══════════════════════════════════ */}
+        <FadeIn delay={0.16}>
         <SectionTitle>C — Épargne & effort futur</SectionTitle>
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5 mb-8">
 
@@ -718,6 +726,7 @@ export default function Bloc5() {
               value={state.horizonInvest} onChange={v => upd('horizonInvest', v as string)} />
           </Field>
         </div>
+        </FadeIn>
 
         {/* ══ SYNTHÈSE ════════════════════════════════════════════════════ */}
         {!state.showSynthese && (

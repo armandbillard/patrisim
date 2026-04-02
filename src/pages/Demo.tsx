@@ -4,6 +4,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
+import { motion, type Variants } from 'framer-motion'
+import FadeIn from '../components/FadeIn'
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.4, delay: i * 0.08, ease: 'easeOut' } }),
+}
 
 export interface DemoProfile {
   id: string
@@ -576,7 +583,7 @@ export default function Demo() {
     <div className="min-h-screen bg-[#F8F8F6]">
       <div className="max-w-3xl mx-auto px-8 py-16">
 
-        <div className="mb-10">
+        <FadeIn className="mb-10">
           <button type="button" onClick={() => navigate('/')}
             className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors mb-6 flex items-center gap-1.5">
             ← Retour
@@ -588,16 +595,22 @@ export default function Demo() {
             Sélectionnez un profil type pour explorer PatriSim avec des données pré-remplies.
             Vous pourrez modifier toutes les valeurs librement.
           </p>
-        </div>
+        </FadeIn>
 
         <div className="grid grid-cols-2 gap-4">
-          {DEMO_PROFILES.map(profile => (
-            <button
+          {DEMO_PROFILES.map((profile, i) => (
+            <motion.button
               key={profile.id}
+              custom={i}
+              variants={cardVariants}
+              initial="hidden"
+              animate="show"
+              whileHover={{ y: -3, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
+              whileTap={{ scale: 0.98 }}
               type="button"
               onClick={() => handleSelect(profile.id)}
               disabled={loading !== null}
-              className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-left hover:border-[#185FA5]/30 hover:shadow-md transition-all group disabled:opacity-60"
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-left disabled:opacity-60"
             >
               <div className="flex items-start justify-between mb-4">
                 <span className="text-3xl">{profile.emoji}</span>
@@ -635,13 +648,15 @@ export default function Demo() {
               <div className="flex items-center gap-1.5 text-[12px] text-[#185FA5] font-medium">
                 Charger ce profil <ArrowRight size={13} />
               </div>
-            </button>
+            </motion.button>
           ))}
         </div>
 
-        <p className="text-[12px] text-gray-400 text-center mt-8">
-          Les données de démonstration sont chargées localement. Aucune information n'est transmise.
-        </p>
+        <FadeIn delay={0.4}>
+          <p className="text-[12px] text-gray-400 text-center mt-8">
+            Les données de démonstration sont chargées localement. Aucune information n'est transmise.
+          </p>
+        </FadeIn>
       </div>
     </div>
   )

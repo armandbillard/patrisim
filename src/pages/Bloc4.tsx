@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Upload, CheckCircle, AlertTriangle, X, ArrowDown, ArrowUp } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { getNextBloc } from '../utils/navigation'
+import FadeIn from '../components/FadeIn'
 import SyntheseButton from '../components/SyntheseButton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -362,6 +363,7 @@ export default function Bloc4() {
         </div>
 
         {/* ══ 0 — PDF EN PREMIER ══════════════════════════════════════════ */}
+        <FadeIn delay={0}>
         <SectionTitle>0 — Import automatique de votre avis d'imposition</SectionTitle>
         {!state.pdfSkipped && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-8 space-y-4">
@@ -420,7 +422,10 @@ export default function Bloc4() {
           </div>
         )}
 
+        </FadeIn>
+
         {/* ══ A — REVENUS ══════════════════════════════════════════════════ */}
+        <FadeIn delay={0.08}>
         <SectionTitle>A — Revenus</SectionTitle>
 
         {/* Revenus pro */}
@@ -473,7 +478,10 @@ export default function Bloc4() {
           )}
         </div>
 
+        </FadeIn>
+
         {/* ══ B — DÉPENSES ═════════════════════════════════════════════════ */}
+        <FadeIn delay={0.16}>
         <SectionTitle>B — Dépenses mensuelles</SectionTitle>
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4 mb-6">
           <InfoCard color="blue">Les mensualités de crédits sont pré-remplies depuis le Bloc 3. Complétez les autres postes en € ou en %.</InfoCard>
@@ -529,7 +537,10 @@ export default function Bloc4() {
           </div>
         </div>
 
+        </FadeIn>
+
         {/* ══ DCA ═══════════════════════════════════════════════════════════ */}
+        <FadeIn delay={0.24}>
         <SectionTitle>DCA en place</SectionTitle>
         <div className="mb-6 space-y-3">
           <InfoCard color="blue">
@@ -563,7 +574,10 @@ export default function Bloc4() {
           </div>
         )}
 
+        </FadeIn>
+
         {/* ══ C — FISCALITÉ ════════════════════════════════════════════════ */}
+        <FadeIn delay={0.32}>
         <SectionTitle>C — Données fiscales</SectionTitle>
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4 mb-6">
           {state.pdfStatus==='done'&&(
@@ -599,6 +613,7 @@ export default function Bloc4() {
             <InfoCard color="amber">💡 Plafond PER disponible : <strong>{fmt(plafondPer)} €</strong> — économie estimée : <strong>{fmt(economiePer)} €/an</strong> (TMI {tmi}%)</InfoCard>
           )}
         </div>
+        </FadeIn>
 
       </div>
 

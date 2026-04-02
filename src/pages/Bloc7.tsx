@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import FadeIn from '../components/FadeIn'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -484,6 +485,7 @@ export default function Bloc7() {
         </div>
 
         {/* ══ A — SITUATION SUCCESSORALE ══════════════════════════════════ */}
+        <FadeIn delay={0}>
         <SectionTitle>A — Héritiers & dispositions</SectionTitle>
 
         {/* Héritiers */}
@@ -608,7 +610,10 @@ export default function Bloc7() {
           </div>
         )}
 
+        </FadeIn>
+
         {/* ══ B — OPÉRATIONS RÉALISÉES ════════════════════════════════════ */}
+        <FadeIn delay={0.08}>
         <SectionTitle>B — Opérations déjà réalisées</SectionTitle>
 
         {/* Donations */}
@@ -854,7 +859,10 @@ export default function Bloc7() {
           </div>
         )}
 
+        </FadeIn>
+
         {/* ══ C — SUCCESSION À RECEVOIR ══════════════════════════════════ */}
+        <FadeIn delay={0.16}>
         <SectionTitle>C — Succession à recevoir</SectionTitle>
         <div className="mb-6">
           <Field label="Êtes-vous susceptible de recevoir une succession ou donation ?">
@@ -943,6 +951,8 @@ export default function Bloc7() {
             </div>
           )}
         </div>
+
+        </FadeIn>
 
         {/* ══ SYNTHÈSE ════════════════════════════════════════════════════ */}
         {!state.showSynthese && (

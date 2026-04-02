@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle, Info } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { getNextBloc } from '../utils/navigation'
+import FadeIn from '../components/FadeIn'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -202,6 +203,7 @@ export default function Bloc6() {
         </div>
 
         {/* Objectif rappelé depuis Bloc0 */}
+        <FadeIn delay={0}>
         <div className="bg-[#E6F1FB] border border-[#185FA5]/20 rounded-xl px-5 py-3 mb-8 flex items-center gap-3">
           <Info size={16} className="text-[#185FA5] flex-shrink-0" />
           <div>
@@ -210,7 +212,10 @@ export default function Bloc6() {
           </div>
         </div>
 
+        </FadeIn>
+
         {/* ══ MiFID II ══════════════════════════════════════════════════════ */}
+        <FadeIn delay={0.08}>
         <SectionTitle>Questionnaire MiFID II — Profil de risque</SectionTitle>
         <InfoCard color="blue">
           Ce questionnaire est conforme aux exigences MiFID II. Vos réponses déterminent votre profil investisseur officiel.
@@ -418,6 +423,8 @@ export default function Bloc6() {
             </div>
           )}
         </div>
+
+        </FadeIn>
 
         {errors.length > 0 && (
           <div className="mt-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3 space-y-1">

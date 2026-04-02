@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { getNextBloc } from '../utils/navigation'
+import FadeIn from '../components/FadeIn'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -781,6 +782,7 @@ export default function Bloc2() {
         </div>
 
         {/* ══ A — IMMOBILIER ══════════════════════════════════════════════════ */}
+        <FadeIn delay={0}>
         <SectionDivider label="A — Immobilier" />
         <SubTitle>Résidence principale</SubTitle>
         <div className="mb-6">
@@ -792,12 +794,14 @@ export default function Bloc2() {
           <Field label="Avez-vous d'autres biens immobiliers ?"><Toggle value={state.autresBiens} onChange={v => { upd('autresBiens', v); if (!v) upd('biens', []) }} /></Field>
           {state.autresBiens && (
             <div className="mt-4 space-y-3">
+              <AnimatePresence>
               {state.biens.map(b => (
-                <div key={b.id} className="relative">
+                <motion.div key={b.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }} className="relative">
                   <BienCard bien={b} onChange={nb => updateBien(b.id, nb)} p1Label={p1Label} p2Label={p2Label} regimeMatrimonial={regimeMatrimonial} statutMatrimonial={statutMatrimonial} />
                   <button type="button" onClick={() => removeBien(b.id)} className="absolute top-4 right-14 text-[11px] text-red-400 hover:text-red-600 font-medium">Supprimer</button>
-                </div>
+                </motion.div>
               ))}
+              </AnimatePresence>
               <AddBtn onClick={addBien} label="Ajouter un bien" />
             </div>
           )}
@@ -807,13 +811,18 @@ export default function Bloc2() {
           <Field label="Avez-vous des parts de SCPI en direct ?"><Toggle value={state.aScpi} onChange={v => { upd('aScpi', v); if (!v) upd('scpis', []) }} /></Field>
           {state.aScpi && (
             <div className="mt-4 space-y-3">
-              {state.scpis.map(s => <ScpiCard key={s.id} scpi={s} onChange={ns => updateScpi(s.id, ns)} onRemove={() => removeScpi(s.id)} p1Label={p1Label} p2Label={p2Label} />)}
+              <AnimatePresence>
+              {state.scpis.map(s => <motion.div key={s.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}><ScpiCard scpi={s} onChange={ns => updateScpi(s.id, ns)} onRemove={() => removeScpi(s.id)} p1Label={p1Label} p2Label={p2Label} /></motion.div>)}
+              </AnimatePresence>
               <AddBtn onClick={addScpi} label="Ajouter une SCPI" />
             </div>
           )}
         </div>
 
+        </FadeIn>
+
         {/* ══ B — ACTIF FINANCIER ═════════════════════════════════════════════ */}
+        <FadeIn delay={0.08}>
         <SectionDivider label="B — Actif financier" />
 
         {/* Comptes courants */}
@@ -822,8 +831,10 @@ export default function Bloc2() {
           <Field label="Avez-vous un ou plusieurs comptes courants ?"><Toggle value={state.aComptesCourants} onChange={v => { upd('aComptesCourants', v); if (!v) upd('comptesCourants', []) }} /></Field>
           {state.aComptesCourants && (
             <div className="mt-4 space-y-3">
+              <AnimatePresence>
               {state.comptesCourants.map(c => (
-                <CardWrap key={c.id} title={c.etablissement || 'Compte courant'} subtitle={c.solde ? `${fmt(parseNum(c.solde))} €` : undefined} onRemove={() => removeCC(c.id)}>
+                <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
+                <CardWrap title={c.etablissement || 'Compte courant'} subtitle={c.solde ? `${fmt(parseNum(c.solde))} €` : undefined} onRemove={() => removeCC(c.id)}>
                   <div className="grid grid-cols-2 gap-4">
                     <Field label="Établissement"><Input value={c.etablissement} onChange={v => updateCC(c.id, { ...c, etablissement: v })} placeholder="BNP Paribas" /></Field>
                     <Field label="Solde moyen estimé"><Input value={c.solde} onChange={v => updateCC(c.id, { ...c, solde: v })} placeholder="0" suffix="€" /></Field>
@@ -831,7 +842,9 @@ export default function Bloc2() {
                   <Field label="Titulaire"><Chips options={titulairesOptions} value={c.titulaire} onChange={v => updateCC(c.id, { ...c, titulaire: v as string })} /></Field>
                   <InfoCard color="amber">L'argent sur un compte courant n'est pas rémunéré. Un CGP recommande de ne conserver que 1–2 mois de dépenses sur ce type de compte.</InfoCard>
                 </CardWrap>
+                </motion.div>
               ))}
+              </AnimatePresence>
               <AddBtn onClick={addCC} label="Ajouter un compte courant" />
             </div>
           )}
@@ -843,12 +856,14 @@ export default function Bloc2() {
           <Field label="Avez-vous des livrets d'épargne ?"><Toggle value={state.aLivrets} onChange={v => { upd('aLivrets', v); if (!v) upd('livrets', []) }} /></Field>
           {state.aLivrets && (
             <div className="mt-4 space-y-3">
+              <AnimatePresence>
               {state.livrets.map(l => {
                 const isPelCel = l.type === 'PEL' || l.type === 'CEL'
                 const annees = yearsAgo(l.dateOuverture)
                 const pelAvantage = l.type === 'PEL' && l.dateOuverture && new Date(l.dateOuverture).getFullYear() < 2018
                 return (
-                  <CardWrap key={l.id} title={l.type || 'Livret'} subtitle={l.solde ? `${fmt(parseNum(l.solde))} €` : undefined} onRemove={() => removeLivret(l.id)}>
+                  <motion.div key={l.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
+                  <CardWrap title={l.type || 'Livret'} subtitle={l.solde ? `${fmt(parseNum(l.solde))} €` : undefined} onRemove={() => removeLivret(l.id)}>
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Type de livret">
                         <Select value={l.type} onChange={v => {
@@ -884,8 +899,10 @@ export default function Bloc2() {
                     )}
                     <Field label="Titulaire"><Chips options={titulairesOptions} value={l.titulaire} onChange={v => updateLivret(l.id, { ...l, titulaire: v as string })} /></Field>
                   </CardWrap>
+                  </motion.div>
                 )
               })}
+              </AnimatePresence>
               <AddBtn onClick={addLivret} label="Ajouter un livret" />
             </div>
           )}
@@ -897,6 +914,7 @@ export default function Bloc2() {
           <Field label="Avez-vous un PEA ?"><Toggle value={state.aPea} onChange={v => { upd('aPea', v); if (!v) upd('peas', []) }} /></Field>
           {state.aPea && (
             <div className="mt-4 space-y-3">
+              <AnimatePresence>
               {state.peas.map(p => {
                 const ans = yearsAgo(p.dateOuverture)
                 const valeur = parseNum(p.valeur), versements = parseNum(p.versements)
@@ -906,7 +924,8 @@ export default function Bloc2() {
                 const peaPmeVers = parseNum(p.peaPmeVersements)
                 const plafondPmeDispo = Math.max(0, 225000 - versements - peaPmeVers)
                 return (
-                  <CardWrap key={p.id} title={p.etablissement || 'PEA'} subtitle={valeur > 0 ? `${fmt(valeur)} €` : undefined} onRemove={() => removePea(p.id)}>
+                  <motion.div key={p.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
+                  <CardWrap title={p.etablissement || 'PEA'} subtitle={valeur > 0 ? `${fmt(valeur)} €` : undefined} onRemove={() => removePea(p.id)}>
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Titulaire"><Chips options={titulairesP1P2} value={p.titulaire} onChange={v => updatePea(p.id, { ...p, titulaire: v as string })} /></Field>
                       <Field label="Établissement"><Input value={p.etablissement} onChange={v => updatePea(p.id, { ...p, etablissement: v })} placeholder="Bourse Direct" /></Field>
@@ -950,8 +969,10 @@ export default function Bloc2() {
                       </div>
                     )}
                   </CardWrap>
+                  </motion.div>
                 )
               })}
+              </AnimatePresence>
               <AddBtn onClick={addPea} label="Ajouter un PEA" />
             </div>
           )}
@@ -963,10 +984,12 @@ export default function Bloc2() {
           <Field label="Avez-vous un ou plusieurs CTO ?"><Toggle value={state.aCto} onChange={v => { upd('aCto', v); if (!v) upd('ctos', []) }} /></Field>
           {state.aCto && (
             <div className="mt-4 space-y-3">
+              <AnimatePresence>
               {state.ctos.map(c => {
                 const pv = parseNum(c.valeur) - parseNum(c.prixRevient)
                 return (
-                  <CardWrap key={c.id} title={c.etablissement || 'CTO'} subtitle={c.valeur ? `${fmt(parseNum(c.valeur))} €` : undefined} onRemove={() => removeCto(c.id)}>
+                  <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
+                  <CardWrap title={c.etablissement || 'CTO'} subtitle={c.valeur ? `${fmt(parseNum(c.valeur))} €` : undefined} onRemove={() => removeCto(c.id)}>
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Établissement"><Input value={c.etablissement} onChange={v => updateCto(c.id, { ...c, etablissement: v })} placeholder="Saxo Bank" /></Field>
                       <Field label="Titulaire"><Chips options={titulairesOptions} value={c.titulaire} onChange={v => updateCto(c.id, { ...c, titulaire: v as string })} /></Field>
@@ -987,8 +1010,10 @@ export default function Bloc2() {
                     </div>
                     <Field label="Secteur principal (optionnel)"><Chips options={['Technologie', 'Santé', 'Énergie', 'Finance', 'Immobilier', 'Diversifié', 'Autre']} value={c.secteur} onChange={v => updateCto(c.id, { ...c, secteur: v as string })} small /></Field>
                   </CardWrap>
+                  </motion.div>
                 )
               })}
+              </AnimatePresence>
               <AddBtn onClick={addCto} label="Ajouter un CTO" />
             </div>
           )}
@@ -1000,6 +1025,7 @@ export default function Bloc2() {
           <Field label="Avez-vous une ou plusieurs assurances-vie ?"><Toggle value={state.aAv} onChange={v => { upd('aAv', v); if (!v) upd('avs', []) }} /></Field>
           {state.aAv && (
             <div className="mt-4 space-y-3">
+              <AnimatePresence>
               {state.avs.map(av => {
                 const ans = yearsAgo(av.dateOuverture)
                 const pv = parseNum(av.valeurRachat) - parseNum(av.versements)
@@ -1007,7 +1033,8 @@ export default function Bloc2() {
                 const valeur = parseNum(av.valeurRachat)
                 const totalBenef = av.beneficiaires.reduce((a, b) => a + parseNum(b.pct), 0)
                 return (
-                  <CardWrap key={av.id} title={av.nom || av.compagnie || 'Assurance-vie'} subtitle={av.valeurRachat ? `${fmt(valeur)} €` : undefined} onRemove={() => removeAv(av.id)}>
+                  <motion.div key={av.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
+                  <CardWrap title={av.nom || av.compagnie || 'Assurance-vie'} subtitle={av.valeurRachat ? `${fmt(valeur)} €` : undefined} onRemove={() => removeAv(av.id)}>
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Nom du contrat"><Input value={av.nom} onChange={v => updateAv(av.id, { ...av, nom: v })} placeholder="Floriane 2" /></Field>
                       <Field label="Compagnie"><Input value={av.compagnie} onChange={v => updateAv(av.id, { ...av, compagnie: v })} placeholder="Générali" /></Field>
@@ -1059,8 +1086,10 @@ export default function Bloc2() {
                     {av.avancesRachats && <Field label="Montant total racheté"><Input value={av.montantRachete} onChange={v => updateAv(av.id, { ...av, montantRachete: v })} placeholder="0" suffix="€" /></Field>}
                     <Field label="Titulaire"><Chips options={titulairesP1P2} value={av.titulaire} onChange={v => updateAv(av.id, { ...av, titulaire: v as string })} /></Field>
                   </CardWrap>
+                  </motion.div>
                 )
               })}
+              </AnimatePresence>
               <AddBtn onClick={addAv} label="Ajouter un contrat" />
             </div>
           )}
@@ -1072,10 +1101,12 @@ export default function Bloc2() {
           <Field label="Avez-vous un PER ?"><Toggle value={state.aPer} onChange={v => { upd('aPer', v); if (!v) upd('pers', []) }} /></Field>
           {state.aPer && (
             <div className="mt-4 space-y-3">
+              <AnimatePresence>
               {state.pers.map(p => {
                 const valeur = parseNum(p.valeur)
                 return (
-                  <CardWrap key={p.id} title={p.etablissement || p.type || 'PER'} subtitle={p.valeur ? `${fmt(valeur)} €` : undefined} onRemove={() => removePer(p.id)}>
+                  <motion.div key={p.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
+                  <CardWrap title={p.etablissement || p.type || 'PER'} subtitle={p.valeur ? `${fmt(valeur)} €` : undefined} onRemove={() => removePer(p.id)}>
                     <Field label="Type"><Chips options={['PER individuel', 'PER collectif (PERCOL)', 'PER obligatoire (PERO)']} value={p.type} onChange={v => updatePer(p.id, { ...p, type: v as string })} small /></Field>
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Établissement"><Input value={p.etablissement} onChange={v => updatePer(p.id, { ...p, etablissement: v })} placeholder="Amundi" /></Field>
@@ -1112,8 +1143,10 @@ export default function Bloc2() {
                     )}
                     <Field label="Titulaire"><Chips options={titulairesP1P2} value={p.titulaire} onChange={v => updatePer(p.id, { ...p, titulaire: v as string })} /></Field>
                   </CardWrap>
+                  </motion.div>
                 )
               })}
+              </AnimatePresence>
               <AddBtn onClick={addPer} label="Ajouter un PER" />
             </div>
           )}
@@ -1260,7 +1293,10 @@ export default function Bloc2() {
           )}
         </div>
 
+        </FadeIn>
+
         {/* ══ C — AUTRES ACTIFS ══════════════════════════════════════════════ */}
+        <FadeIn delay={0.16}>
         <SectionDivider label="C — Autres actifs" />
         <div className="mb-6">
           <Field label="Possédez-vous des actifs non financiers et non immobiliers ?"><Toggle value={state.aAutresActifs} onChange={v => upd('aAutresActifs', v)} /></Field>
@@ -1371,11 +1407,15 @@ export default function Bloc2() {
           )}
         </div>
 
+        </FadeIn>
+
         {/* ══ D — ORIGINE DU PATRIMOINE ════════════════════════════════════════ */}
+        <FadeIn delay={0.24}>
         <SectionDivider label="D — Origine du patrimoine" />
         <div className="mb-8">
           <OrigineSliders origine={state.origine} onChange={o => upd('origine', o)} />
         </div>
+        </FadeIn>
 
         {/* ══ SYNTHÈSE ════════════════════════════════════════════════════════ */}
         {!state.showSynthese && (

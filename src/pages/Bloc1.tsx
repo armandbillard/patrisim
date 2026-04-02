@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { getNextBloc } from '../utils/navigation'
+import FadeIn from '../components/FadeIn'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -720,6 +721,7 @@ export default function Bloc1() {
         </div>
 
         {/* ── Mode de saisie ── */}
+        <FadeIn delay={0}>
         <div className="mb-8">
           <SectionTitle>Mode de saisie</SectionTitle>
           <div className="grid grid-cols-2 gap-3 max-w-xs">
@@ -740,8 +742,10 @@ export default function Bloc1() {
             ))}
           </div>
         </div>
+        </FadeIn>
 
         {/* ── Identité ── */}
+        <FadeIn delay={0.08}>
         <div className="mb-8">
           <SectionTitle>Identité</SectionTitle>
           {isCouple ? (
@@ -756,8 +760,10 @@ export default function Bloc1() {
               isP2={false} errors={{ prenom: errors.p1Prenom, nom: errors.p1Nom, date: errors.p1Date }} />
           )}
         </div>
+        </FadeIn>
 
         {/* ── Situation familiale ── */}
+        <FadeIn delay={0.16}>
         <div className="mb-8">
           <SectionTitle>Situation familiale du foyer</SectionTitle>
           <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-6">
@@ -772,7 +778,9 @@ export default function Bloc1() {
               </Select>
             </Field>
 
+            <AnimatePresence>
             {foyer.statutMatrimonial && foyer.statutMatrimonial !== 'Veuf(ve)' && (
+              <motion.div key="unions-section" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
               <div className="space-y-3">
                 <Field label="Avez-vous déjà été marié(e) ou pacsé(e) précédemment ?">
                   <ToggleYesNo value={foyer.unionPrecedente} onChange={v => setFoyer({ ...foyer, unionPrecedente: v, nbUnionsPrecedentes: '' })} />
@@ -784,9 +792,13 @@ export default function Bloc1() {
                   </Field>
                 )}
               </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 
+            <AnimatePresence>
             {showRegime && (
+              <motion.div key="regime-section" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
               <div className="space-y-2">
                 <Field label="Régime matrimonial" tooltip="Le régime matrimonial détermine la répartition des biens entre époux.">
                   <Select value={foyer.regimeMatrimonial} onChange={v => setFoyer({ ...foyer, regimeMatrimonial: v })}>
@@ -800,7 +812,9 @@ export default function Bloc1() {
                   </div>
                 )}
               </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 
             {/* Logement du foyer */}
             <div className="space-y-3">
@@ -985,8 +999,10 @@ export default function Bloc1() {
 
           </div>
         </div>
+        </FadeIn>
 
         {/* ── Situation professionnelle ── */}
+        <FadeIn delay={0.24}>
         <div className="mb-8">
           <SectionTitle>Situation professionnelle</SectionTitle>
           {isCouple ? (
@@ -1001,8 +1017,10 @@ export default function Bloc1() {
               isP2={false} personneLabel={p1Label} errorStatut={errors.pro1Statut} />
           )}
         </div>
+        </FadeIn>
 
         {/* ── Connaissance financière ── */}
+        <FadeIn delay={0.32}>
         <div className="mb-8">
           <SectionTitle>Connaissance financière</SectionTitle>
           {isCouple ? (
@@ -1017,6 +1035,7 @@ export default function Bloc1() {
               isP2={false} personneLabel={p1Label} errorNiveau={errors.cf1Niveau} />
           )}
         </div>
+        </FadeIn>
 
         {/* Erreurs globales */}
         {Object.keys(errors).length > 0 && (
