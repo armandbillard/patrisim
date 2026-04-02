@@ -1026,12 +1026,12 @@ export default function Bloc2() {
           {state.aAv && (
             <div className="mt-4 space-y-3">
               <AnimatePresence>
-              {state.avs.map(av => {
+              {(state.avs || []).map(av => {
                 const ans = yearsAgo(av.dateOuverture)
                 const pv = parseNum(av.valeurRachat) - parseNum(av.versements)
                 const ucPct = 100 - av.fondsEurosPct
                 const valeur = parseNum(av.valeurRachat)
-                const totalBenef = av.beneficiaires.reduce((a, b) => a + parseNum(b.pct), 0)
+                const totalBenef = (av.beneficiaires || []).reduce((a, b) => a + parseNum(b.pct), 0)
                 return (
                   <motion.div key={av.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
                   <CardWrap title={av.nom || av.compagnie || 'Assurance-vie'} subtitle={av.valeurRachat ? `${fmt(valeur)} €` : undefined} onRemove={() => removeAv(av.id)}>
@@ -1058,7 +1058,7 @@ export default function Bloc2() {
                       </Field>
                     </div>
                     <Field label="Composition (fonds euros / UC)">
-                      <CompositionFonds pct={av.fondsEurosPct} onChange={v => updateAv(av.id, { ...av, fondsEurosPct: v })} valeur={valeur} ucDetail={av.ucDetail} onUcChange={v => updateAv(av.id, { ...av, ucDetail: v })} />
+                      <CompositionFonds pct={av.fondsEurosPct} onChange={v => updateAv(av.id, { ...av, fondsEurosPct: v })} valeur={valeur} ucDetail={av.ucDetail || []} onUcChange={v => updateAv(av.id, { ...av, ucDetail: v })} />
                     </Field>
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Rendement annuel estimé"><Input type="number" value={av.rendement} onChange={v => updateAv(av.id, { ...av, rendement: v })} placeholder="—" suffix="%" /></Field>
@@ -1069,16 +1069,16 @@ export default function Bloc2() {
                     </Field>
                     {(av.clauseBeneficiaire === 'Personnalisée' || av.clauseBeneficiaire === 'Démembrée') && (
                       <div className="space-y-2 pt-2 border-t border-gray-100">
-                        {av.beneficiaires.map((b, i) => (
+                        {(av.beneficiaires || []).map((b, i) => (
                           <div key={i} className="flex gap-3 items-center">
-                            <div className="flex-1"><Input value={b.nom} onChange={v => { const bs = [...av.beneficiaires]; bs[i] = { ...b, nom: v }; updateAv(av.id, { ...av, beneficiaires: bs }) }} placeholder="Prénom Nom" /></div>
-                            <div className="w-20"><Input value={b.pct} onChange={v => { const bs = [...av.beneficiaires]; bs[i] = { ...b, pct: v }; updateAv(av.id, { ...av, beneficiaires: bs }) }} suffix="%" placeholder="50" /></div>
-                            <button type="button" onClick={() => { const bs = av.beneficiaires.filter((_, j) => j !== i); updateAv(av.id, { ...av, beneficiaires: bs }) }} className="text-red-400 hover:text-red-600 text-[11px]">✕</button>
+                            <div className="flex-1"><Input value={b.nom} onChange={v => { const bs = [...(av.beneficiaires || [])]; bs[i] = { ...b, nom: v }; updateAv(av.id, { ...av, beneficiaires: bs }) }} placeholder="Prénom Nom" /></div>
+                            <div className="w-20"><Input value={b.pct} onChange={v => { const bs = [...(av.beneficiaires || [])]; bs[i] = { ...b, pct: v }; updateAv(av.id, { ...av, beneficiaires: bs }) }} suffix="%" placeholder="50" /></div>
+                            <button type="button" onClick={() => { const bs = (av.beneficiaires || []).filter((_, j) => j !== i); updateAv(av.id, { ...av, beneficiaires: bs }) }} className="text-red-400 hover:text-red-600 text-[11px]">✕</button>
                           </div>
                         ))}
                         <div className="flex items-center justify-between">
-                          <button type="button" onClick={() => updateAv(av.id, { ...av, beneficiaires: [...av.beneficiaires, { nom: '', pct: '' }] })} className="text-[12px] text-[#185FA5] hover:text-[#0C447C] font-medium">+ Ajouter un bénéficiaire</button>
-                          {av.beneficiaires.length > 0 && <span className={`text-[11px] font-semibold ${totalBenef === 100 ? 'text-[#0F6E56]' : 'text-amber-600'}`}>Total : {totalBenef}%</span>}
+                          <button type="button" onClick={() => updateAv(av.id, { ...av, beneficiaires: [...(av.beneficiaires || []), { nom: '', pct: '' }] })} className="text-[12px] text-[#185FA5] hover:text-[#0C447C] font-medium">+ Ajouter un bénéficiaire</button>
+                          {(av.beneficiaires || []).length > 0 && <span className={`text-[11px] font-semibold ${totalBenef === 100 ? 'text-[#0F6E56]' : 'text-amber-600'}`}>Total : {totalBenef}%</span>}
                         </div>
                       </div>
                     )}
