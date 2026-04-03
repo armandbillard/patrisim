@@ -57,11 +57,6 @@ interface SituationPro {
   formeJuridique: string
 }
 
-interface ConnaissanceFinanciere {
-  niveauGeneral: string
-  produits: string[]
-}
-
 interface Foyer {
   statutMatrimonial: string
   unionPrecedente: boolean
@@ -88,8 +83,6 @@ interface Errors {
   statutMatrimonial?: string
   pro1Statut?: string
   pro2Statut?: string
-  cf1Niveau?: string
-  cf2Niveau?: string
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -111,10 +104,6 @@ const defaultSituationPro = (): SituationPro => ({
   caissesRetraite: '', dateDepartRetraite: '', formeJuridique: '',
 })
 
-const defaultCF = (): ConnaissanceFinanciere => ({
-  niveauGeneral: '', produits: [],
-})
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const regimesMatrimoniaux: Record<string, string> = {
@@ -125,19 +114,6 @@ const regimesMatrimoniaux: Record<string, string> = {
   'PACS — régime légal': 'Par défaut, chaque partenaire conserve ses biens propres.',
   'PACS — indivision': 'Les biens acquis ensemble appartiennent aux deux partenaires.',
 }
-
-const niveauxCF: { label: string; tooltip: string }[] = [
-  { label: 'Débutant',      tooltip: "Peu ou pas d'expérience en investissement" },
-  { label: 'Intermédiaire', tooltip: 'Connaissance des produits courants (AV, PEA...)' },
-  { label: 'Confirmé',      tooltip: 'Expérience régulière sur marchés financiers' },
-  { label: 'Expert',        tooltip: 'Professionnel ou investisseur très actif' },
-]
-
-const produitsCF = [
-  'Livrets réglementés', 'PEA', 'Assurance-vie', 'PER', 'SCPI',
-  'Actions & obligations', 'Produits structurés', 'Cryptomonnaies',
-  'Immobilier locatif', 'Private equity', 'Épargne salariale (PEE/PERCO)',
-]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -499,96 +475,6 @@ function SituationProCard({ pro, onChange, isP2 = false, personneLabel, errorSta
   )
 }
 
-// ─── ConnaissanceFinanciereCard ────────────────────────────────────────────────
-
-function ConnaissanceFinanciereCard({ cf, onChange, isP2 = false, personneLabel, errorNiveau }: {
-  cf: ConnaissanceFinanciere; onChange: (c: ConnaissanceFinanciere) => void
-  isP2?: boolean; personneLabel: string; errorNiveau?: string
-}) {
-  const badgeBg = isP2 ? 'bg-[#E1F5EE]' : 'bg-[#E6F1FB]'
-  const badgeText = isP2 ? 'text-[#085041]' : 'text-[#0C447C]'
-  const dot = isP2 ? 'bg-[#0F6E56]' : 'bg-[#185FA5]'
-
-  const toggleProduit = (p: string) => {
-    const next = cf.produits.includes(p)
-      ? cf.produits.filter(x => x !== p)
-      : [...cf.produits, p]
-    onChange({ ...cf, produits: next })
-  }
-
-  // Chip style for multi-select produits
-  const chipSelected = isP2
-    ? 'bg-[#E1F5EE] border-[#0F6E56] text-[#085041]'
-    : 'bg-[#E6F1FB] border-[#185FA5] text-[#0C447C]'
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-      {/* Badge */}
-      <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${badgeBg} ${badgeText} text-[11px] font-semibold mb-2`}>
-        <div className={`w-1.5 h-1.5 rounded-full ${dot}`} />{personneLabel}
-      </div>
-
-      <div className="space-y-5">
-        {/* Niveau général */}
-        <Field label="Niveau de connaissance financière" error={errorNiveau}>
-          <div className="flex flex-wrap gap-2 mt-1">
-            {niveauxCF.map(({ label, tooltip }) => (
-              <div key={label} className="group relative">
-                <button
-                  type="button"
-                  onClick={() => onChange({ ...cf, niveauGeneral: label })}
-                  className={`px-4 py-2 rounded-lg text-[13px] border transition-all ${
-                    cf.niveauGeneral === label
-                      ? isP2
-                        ? 'bg-[#0F6E56] border-[#0F6E56] text-white'
-                        : 'bg-[#185FA5] border-[#185FA5] text-white'
-                      : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  {label}
-                </button>
-                {/* Tooltip au survol */}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-[11px] px-3 py-2 rounded-lg w-48 hidden group-hover:block z-20 leading-relaxed shadow-xl text-center pointer-events-none">
-                  {tooltip}
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Field>
-
-        {/* Produits */}
-        <Field label="Produits déjà détenus ou utilisés" tooltip="Sélectionnez tous les produits que vous connaissez ou avez déjà utilisés.">
-          <div className="flex flex-wrap gap-2 mt-1">
-            {produitsCF.map(p => {
-              const selected = cf.produits.includes(p)
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => toggleProduit(p)}
-                  className={`px-3.5 py-1.5 rounded-lg text-[12px] border transition-all ${
-                    selected
-                      ? chipSelected
-                      : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
-                  }`}
-                >
-                  {p}
-                </button>
-              )
-            })}
-          </div>
-          {cf.produits.length > 0 && (
-            <p className="mt-2 text-[11px] text-gray-400">
-              {cf.produits.length} produit{cf.produits.length > 1 ? 's' : ''} sélectionné{cf.produits.length > 1 ? 's' : ''}
-            </p>
-          )}
-        </Field>
-      </div>
-    </div>
-  )
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Bloc1() {
@@ -602,8 +488,6 @@ export default function Bloc1() {
   const [foyer, setFoyer] = useState<Foyer>(() => loadFromStorage('patrisim_bloc1_foyer', defaultFoyer))
   const [pro1, setPro1] = useState<SituationPro>(() => loadFromStorage('patrisim_bloc1_pro1', defaultSituationPro()))
   const [pro2, setPro2] = useState<SituationPro>(() => loadFromStorage('patrisim_bloc1_pro2', defaultSituationPro()))
-  const [cf1, setCf1] = useState<ConnaissanceFinanciere>(() => loadFromStorage('patrisim_bloc1_cf1', defaultCF()))
-  const [cf2, setCf2] = useState<ConnaissanceFinanciere>(() => loadFromStorage('patrisim_bloc1_cf2', defaultCF()))
   const [savedAt, setSavedAt] = useState<string>('')
   const [errors, setErrors] = useState<Errors>({})
   const [showToast, setShowToast] = useState(false)
@@ -621,11 +505,9 @@ export default function Bloc1() {
     localStorage.setItem('patrisim_bloc1_foyer', JSON.stringify(foyer))
     localStorage.setItem('patrisim_bloc1_pro1', JSON.stringify(pro1))
     localStorage.setItem('patrisim_bloc1_pro2', JSON.stringify(pro2))
-    localStorage.setItem('patrisim_bloc1_cf1', JSON.stringify(cf1))
-    localStorage.setItem('patrisim_bloc1_cf2', JSON.stringify(cf2))
     const now = new Date()
     setSavedAt(now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }))
-  }, [mode, p1, p2, foyer, pro1, pro2, cf1, cf2])
+  }, [mode, p1, p2, foyer, pro1, pro2])
 
   // Handlers
   const handleEnfantsCharge = (n: number) => {
@@ -689,7 +571,7 @@ export default function Bloc1() {
     if (window.confirm('Réinitialiser toutes les données du Bloc 1 ?')) {
       setMode('seul'); setP1(defaultPersonne); setP2(defaultPersonne)
       setFoyer(defaultFoyer); setPro1(defaultSituationPro()); setPro2(defaultSituationPro())
-      setCf1(defaultCF()); setCf2(defaultCF()); setErrors({})
+      setErrors({})
     }
   }
 
@@ -1019,24 +901,6 @@ export default function Bloc1() {
         </div>
         </FadeIn>
 
-        {/* ── Connaissance financière ── */}
-        <FadeIn delay={0.32}>
-        <div className="mb-8">
-          <SectionTitle>Connaissance financière</SectionTitle>
-          {isCouple ? (
-            <div className="grid grid-cols-2 gap-4">
-              <ConnaissanceFinanciereCard cf={cf1} onChange={c => { setCf1(c); setErrors(e => ({ ...e, cf1Niveau: undefined })) }}
-                isP2={false} personneLabel={p1Label} errorNiveau={errors.cf1Niveau} />
-              <ConnaissanceFinanciereCard cf={cf2} onChange={c => { setCf2(c); setErrors(e => ({ ...e, cf2Niveau: undefined })) }}
-                isP2={true} personneLabel={p2Label} errorNiveau={errors.cf2Niveau} />
-            </div>
-          ) : (
-            <ConnaissanceFinanciereCard cf={cf1} onChange={c => { setCf1(c); setErrors(e => ({ ...e, cf1Niveau: undefined })) }}
-              isP2={false} personneLabel={p1Label} errorNiveau={errors.cf1Niveau} />
-          )}
-        </div>
-        </FadeIn>
-
         {/* Erreurs globales */}
         {Object.keys(errors).length > 0 && (
           <div data-error="true" className="mb-6 bg-red-50 border border-red-100 rounded-xl px-4 py-3 flex items-start gap-3">
@@ -1069,8 +933,6 @@ export default function Bloc1() {
               localStorage.setItem('patrisim_bloc1_foyer', JSON.stringify(foyer))
               localStorage.setItem('patrisim_bloc1_pro1', JSON.stringify(pro1))
               localStorage.setItem('patrisim_bloc1_pro2', JSON.stringify(pro2))
-              localStorage.setItem('patrisim_bloc1_cf1', JSON.stringify(cf1))
-              localStorage.setItem('patrisim_bloc1_cf2', JSON.stringify(cf2))
               const now = new Date()
               setSavedAt(now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }))
             }}

@@ -50,20 +50,18 @@ interface Livret {
 interface Pea {
   id: string; titulaire: string; etablissement: string
   dateOuverture: string; valeur: string; versements: string
-  composition: string[]; rendement: string; risque: string
+  composition: string[]; rendement: string
   aPeaPme: boolean; peaPmeEtab: string; peaPmeValeur: string; peaPmeVersements: string
 }
 interface Cto {
   id: string; etablissement: string; valeur: string; prixRevient: string
   titulaire: string; composition: string[]
-  rendement: string; risque: string; secteur: string
+  rendement: string; secteur: string
 }
-interface Beneficiaire { nom: string; pct: string }
 interface AssuranceVie {
   id: string; nom: string; compagnie: string; dateOuverture: string
   valeurRachat: string; versements: string; fondsEurosPct: number
-  ucDetail: string[]; rendement: string; risque: string
-  clauseBeneficiaire: string; beneficiaires: Beneficiaire[]
+  ucDetail: string[]; rendement: string
   avancesRachats: boolean; montantRachete: string; titulaire: string
 }
 interface Per {
@@ -136,9 +134,9 @@ const defaultBien = (): BienImmobilier => ({ id: crypto.randomUUID(), typeBien: 
 const defaultScpi = (): ScpiDirecte => ({ id: crypto.randomUUID(), nom: '', societeGestion: '', type: '', nbParts: '', prixSouscription: '', prixRetrait: '', dividendesAnnuels: '', natureJuridique: '', modeDetention: '', demembrement: defaultDemembrement() })
 const defaultCC = (): CompteCourant => ({ id: crypto.randomUUID(), etablissement: '', solde: '', titulaire: '' })
 const defaultLivret = (): Livret => ({ id: crypto.randomUUID(), type: '', taux: '', etablissement: '', solde: '', dateOuverture: '', dateEcheance: '', titulaire: '' })
-const defaultPea = (): Pea => ({ id: crypto.randomUUID(), titulaire: '', etablissement: '', dateOuverture: '', valeur: '', versements: '', composition: [], rendement: '', risque: '', aPeaPme: false, peaPmeEtab: '', peaPmeValeur: '', peaPmeVersements: '' })
-const defaultCto = (): Cto => ({ id: crypto.randomUUID(), etablissement: '', valeur: '', prixRevient: '', titulaire: '', composition: [], rendement: '', risque: '', secteur: '' })
-const defaultAv = (): AssuranceVie => ({ id: crypto.randomUUID(), nom: '', compagnie: '', dateOuverture: '', valeurRachat: '', versements: '', fondsEurosPct: 80, ucDetail: [], rendement: '', risque: '', clauseBeneficiaire: '', beneficiaires: [], avancesRachats: false, montantRachete: '', titulaire: '' })
+const defaultPea = (): Pea => ({ id: crypto.randomUUID(), titulaire: '', etablissement: '', dateOuverture: '', valeur: '', versements: '', composition: [], rendement: '', aPeaPme: false, peaPmeEtab: '', peaPmeValeur: '', peaPmeVersements: '' })
+const defaultCto = (): Cto => ({ id: crypto.randomUUID(), etablissement: '', valeur: '', prixRevient: '', titulaire: '', composition: [], rendement: '', secteur: '' })
+const defaultAv = (): AssuranceVie => ({ id: crypto.randomUUID(), nom: '', compagnie: '', dateOuverture: '', valeurRachat: '', versements: '', fondsEurosPct: 80, ucDetail: [], rendement: '', avancesRachats: false, montantRachete: '', titulaire: '' })
 const defaultPer = (): Per => ({ id: crypto.randomUUID(), type: '', etablissement: '', valeur: '', versementsVolontaires: '', versementsEmployeur: '', fondsEurosPct: 60, ucDetail: [], rendement: '', risque: '', modeSortie: '', deblocage: false, montantDebloque: '', motifDeblocage: '', titulaire: '' })
 const defaultES = (): EpargneSalariale => ({ type: '', entreprise: '', valeur: '', disponibilite: '', dateDeblocage: '', titulaire: '' })
 const defaultCrypto = (): Crypto => ({ valeur: '', prixRevient: '', plateformeDeclaree: false, composition: [], titulaire: '' })
@@ -953,10 +951,7 @@ export default function Bloc2() {
                       </div>
                     )}
                     <Field label="Composition"><Chips options={['ETF', 'Actions françaises', 'Actions européennes', 'Fonds actifs', 'Liquidités']} value={p.composition} onChange={v => updatePea(p.id, { ...p, composition: v as string[] })} multi small /></Field>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Rendement annuel estimé (optionnel)"><Input type="number" value={p.rendement} onChange={v => updatePea(p.id, { ...p, rendement: v })} placeholder="—" suffix="%" /></Field>
-                      <Field label="Niveau de risque"><Chips options={['Faible', 'Modéré', 'Élevé', 'Très élevé']} value={p.risque} onChange={v => updatePea(p.id, { ...p, risque: v as string })} small /></Field>
-                    </div>
+                    <Field label="Rendement annuel estimé (optionnel)"><Input type="number" value={p.rendement} onChange={v => updatePea(p.id, { ...p, rendement: v })} placeholder="—" suffix="%" /></Field>
                     <Field label="PEA-PME associé ?"><Toggle value={p.aPeaPme} onChange={v => updatePea(p.id, { ...p, aPeaPme: v })} /></Field>
                     {p.aPeaPme && (
                       <div className="space-y-3 pt-2 border-t border-gray-100">
@@ -1004,10 +999,7 @@ export default function Bloc2() {
                       </Field>
                     </div>
                     <Field label="Composition"><Chips options={['Actions FR', 'Actions étrangères', 'Obligations', 'ETF', 'Fonds', 'Produits structurés', 'Liquidités']} value={c.composition} onChange={v => updateCto(c.id, { ...c, composition: v as string[] })} multi small /></Field>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Rendement annuel estimé"><Input type="number" value={c.rendement} onChange={v => updateCto(c.id, { ...c, rendement: v })} placeholder="—" suffix="%" /></Field>
-                      <Field label="Niveau de risque"><Chips options={['Faible', 'Modéré', 'Élevé', 'Très élevé']} value={c.risque} onChange={v => updateCto(c.id, { ...c, risque: v as string })} small /></Field>
-                    </div>
+                    <Field label="Rendement annuel estimé"><Input type="number" value={c.rendement} onChange={v => updateCto(c.id, { ...c, rendement: v })} placeholder="—" suffix="%" /></Field>
                     <Field label="Secteur principal (optionnel)"><Chips options={['Technologie', 'Santé', 'Énergie', 'Finance', 'Immobilier', 'Diversifié', 'Autre']} value={c.secteur} onChange={v => updateCto(c.id, { ...c, secteur: v as string })} small /></Field>
                   </CardWrap>
                   </motion.div>
@@ -1031,7 +1023,6 @@ export default function Bloc2() {
                 const pv = parseNum(av.valeurRachat) - parseNum(av.versements)
                 const ucPct = 100 - av.fondsEurosPct
                 const valeur = parseNum(av.valeurRachat)
-                const totalBenef = (av.beneficiaires || []).reduce((a, b) => a + parseNum(b.pct), 0)
                 return (
                   <motion.div key={av.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
                   <CardWrap title={av.nom || av.compagnie || 'Assurance-vie'} subtitle={av.valeurRachat ? `${fmt(valeur)} €` : undefined} onRemove={() => removeAv(av.id)}>
@@ -1060,28 +1051,7 @@ export default function Bloc2() {
                     <Field label="Composition (fonds euros / UC)">
                       <CompositionFonds pct={av.fondsEurosPct} onChange={v => updateAv(av.id, { ...av, fondsEurosPct: v })} valeur={valeur} ucDetail={av.ucDetail || []} onUcChange={v => updateAv(av.id, { ...av, ucDetail: v })} />
                     </Field>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Rendement annuel estimé"><Input type="number" value={av.rendement} onChange={v => updateAv(av.id, { ...av, rendement: v })} placeholder="—" suffix="%" /></Field>
-                      <Field label="Niveau de risque global"><Chips options={['Faible', 'Modéré', 'Élevé', 'Très élevé']} value={av.risque} onChange={v => updateAv(av.id, { ...av, risque: v as string })} small /></Field>
-                    </div>
-                    <Field label="Clause bénéficiaire">
-                      <Chips options={['Standard (conjoint puis enfants)', 'Personnalisée', 'Démembrée']} value={av.clauseBeneficiaire} onChange={v => updateAv(av.id, { ...av, clauseBeneficiaire: v as string, beneficiaires: [] })} small />
-                    </Field>
-                    {(av.clauseBeneficiaire === 'Personnalisée' || av.clauseBeneficiaire === 'Démembrée') && (
-                      <div className="space-y-2 pt-2 border-t border-gray-100">
-                        {(av.beneficiaires || []).map((b, i) => (
-                          <div key={i} className="flex gap-3 items-center">
-                            <div className="flex-1"><Input value={b.nom} onChange={v => { const bs = [...(av.beneficiaires || [])]; bs[i] = { ...b, nom: v }; updateAv(av.id, { ...av, beneficiaires: bs }) }} placeholder="Prénom Nom" /></div>
-                            <div className="w-20"><Input value={b.pct} onChange={v => { const bs = [...(av.beneficiaires || [])]; bs[i] = { ...b, pct: v }; updateAv(av.id, { ...av, beneficiaires: bs }) }} suffix="%" placeholder="50" /></div>
-                            <button type="button" onClick={() => { const bs = (av.beneficiaires || []).filter((_, j) => j !== i); updateAv(av.id, { ...av, beneficiaires: bs }) }} className="text-red-400 hover:text-red-600 text-[11px]">✕</button>
-                          </div>
-                        ))}
-                        <div className="flex items-center justify-between">
-                          <button type="button" onClick={() => updateAv(av.id, { ...av, beneficiaires: [...(av.beneficiaires || []), { nom: '', pct: '' }] })} className="text-[12px] text-[#185FA5] hover:text-[#0C447C] font-medium">+ Ajouter un bénéficiaire</button>
-                          {(av.beneficiaires || []).length > 0 && <span className={`text-[11px] font-semibold ${totalBenef === 100 ? 'text-[#0F6E56]' : 'text-amber-600'}`}>Total : {totalBenef}%</span>}
-                        </div>
-                      </div>
-                    )}
+                    <Field label="Rendement annuel estimé"><Input type="number" value={av.rendement} onChange={v => updateAv(av.id, { ...av, rendement: v })} placeholder="—" suffix="%" /></Field>
                     <Field label="Avances ou rachats partiels ?"><Toggle value={av.avancesRachats} onChange={v => updateAv(av.id, { ...av, avancesRachats: v })} /></Field>
                     {av.avancesRachats && <Field label="Montant total racheté"><Input value={av.montantRachete} onChange={v => updateAv(av.id, { ...av, montantRachete: v })} placeholder="0" suffix="€" /></Field>}
                     <Field label="Titulaire"><Chips options={titulairesP1P2} value={av.titulaire} onChange={v => updateAv(av.id, { ...av, titulaire: v as string })} /></Field>
@@ -1201,11 +1171,6 @@ export default function Bloc2() {
                   <InfoCard color="amber">Les comptes crypto détenus sur plateformes étrangères doivent être déclarés chaque année (formulaire 3916-bis). Une omission peut entraîner des pénalités.</InfoCard>
                 )}
                 <Field label="Composition (optionnel)"><Chips options={['Bitcoin', 'Ethereum', 'Stablecoins', 'Altcoins', 'Autres']} value={state.crypto.composition} onChange={v => upd('crypto', { ...state.crypto, composition: v as string[] })} multi small /></Field>
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-gray-400 uppercase tracking-wider">Niveau de risque</span>
-                  <Badge color="red">Très élevé</Badge>
-                  <span className="text-[11px] text-gray-400">— par nature</span>
-                </div>
                 <Field label="Titulaire"><Chips options={titulairesOptions} value={state.crypto.titulaire} onChange={v => upd('crypto', { ...state.crypto, titulaire: v as string })} /></Field>
               </div>
             </div>

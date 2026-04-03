@@ -11,9 +11,23 @@ interface MifidReponses {
   q1:number; q2:number; q3:number; q4:number; q5:number; q6:number; q7:number
 }
 
+interface ConnaissanceFinanciere {
+  niveauGeneral: string
+  produits: string[]
+}
+
+interface RisquePlacement {
+  id: string; type: string; nom: string; risque: string
+}
+
 interface Bloc6State {
   mifidDone: boolean
   reponses: MifidReponses
+  // Connaissance financière
+  cf1: ConnaissanceFinanciere
+  cf2: ConnaissanceFinanciere
+  // Risques placements
+  risquesPlacement: RisquePlacement[]
   // Convictions
   aConvictions: boolean | null
   universInvest: string[]
@@ -40,9 +54,13 @@ function getProfilMifid(score:number) {
   return           {label:'Offensif',       color:'#DC2626', bg:'#FEF2F2', text:'#991B1B'}
 }
 
+const defaultCF = (): ConnaissanceFinanciere => ({ niveauGeneral: '', produits: [] })
+
 const defaultState = (): Bloc6State => ({
   mifidDone: false,
   reponses: {q1:0,q2:0,q3:0,q4:0,q5:0,q6:0,q7:0},
+  cf1: defaultCF(), cf2: defaultCF(),
+  risquesPlacement: [],
   aConvictions: null,
   universInvest: [], prefGeo: '', secteursPriv: [], secteursExcl: [], prefESG: '',
   liquiditePct: 20, suiviFrequence: '', modeConseil: '',
@@ -65,6 +83,21 @@ function InfoCard({children,color='blue'}:{children:React.ReactNode;color?:'blue
   const s={blue:'bg-[#E6F1FB] text-[#0C447C] border-[#185FA5]/20',amber:'bg-amber-50 text-amber-800 border-amber-200',green:'bg-[#E1F5EE] text-[#085041] border-[#0F6E56]/20',red:'bg-red-50 text-red-700 border-red-200'}
   return<div className={`rounded-xl border px-4 py-3 text-[12px] leading-relaxed ${s[color]}`}>{children}</div>
 }
+
+// ─── Constantes connaissance financière ───────────────────────────────────────
+
+const niveauxCF: { label: string; tooltip: string }[] = [
+  { label: 'Débutant',      tooltip: "Peu ou pas d'expérience en investissement" },
+  { label: 'Intermédiaire', tooltip: 'Connaissance des produits courants (AV, PEA...)' },
+  { label: 'Confirmé',      tooltip: 'Expérience régulière sur marchés financiers' },
+  { label: 'Expert',        tooltip: 'Professionnel ou investisseur très actif' },
+]
+
+const produitsCF = [
+  'Livrets réglementés', 'PEA', 'Assurance-vie', 'PER', 'SCPI',
+  'Actions & obligations', 'Produits structurés', 'Cryptomonnaies',
+  'Immobilier locatif', 'Private equity', 'Épargne salariale (PEE/PERCO)',
+]
 
 // ─── Questions MiFID ──────────────────────────────────────────────────────────
 
@@ -143,6 +176,26 @@ export default function Bloc6() {
     succession: 'Préparer ma succession',
   }
 
+  // Lecture Bloc 1
+  const p1Data = loadLS<{ prenom?: string }>('patrisim_bloc1_p1', {})
+  const p2Data = loadLS<{ prenom?: string }>('patrisim_bloc1_p2', {})
+  const bloc1Mode = loadLS<{ v?: string }>('patrisim_bloc1_mode', {}).v || 'seul'
+  const isCouple = bloc1Mode === 'couple'
+  const p1Label = p1Data.prenom?.trim() || 'Personne 1'
+  const p2Label = p2Data.prenom?.trim() || 'Personne 2'
+
+  // Lecture Bloc 2 — placements pour risques
+  const bloc2 = loadLS<{
+    peas?: { id?: string; etablissement?: string }[]
+    ctos?: { id?: string; etablissement?: string }[]
+    avs?: { id?: string; nom?: string; compagnie?: string }[]
+  }>('patrisim_bloc2', {})
+  const allPlacements: RisquePlacement[] = [
+    ...(bloc2.peas || []).map(p => ({ id: p.id || '', type: 'PEA', nom: p.etablissement || 'PEA', risque: '' })),
+    ...(bloc2.ctos || []).map(c => ({ id: c.id || '', type: 'CTO', nom: c.etablissement || 'CTO', risque: '' })),
+    ...(bloc2.avs  || []).map(av => ({ id: av.id || '', type: 'AV',  nom: av.nom || av.compagnie || 'Assurance-vie', risque: '' })),
+  ].filter(p => p.id)
+
   const [state, setState] = useState<Bloc6State>(() => loadLS('patrisim_bloc6', defaultState()))
   const [savedAt, setSavedAt] = useState('')
   const [errors, setErrors] = useState<string[]>([])
@@ -151,6 +204,10 @@ export default function Bloc6() {
 
   const upd = useCallback(<K extends keyof Bloc6State>(k:K, v:Bloc6State[K]) =>
     setState(s => ({...s, [k]: v})), [])
+
+  const getRisque = (id: string) => state.risquesPlacement.find(r => r.id === id)?.risque || ''
+  const setRisque = (id: string, type: string, nom: string, risque: string) =>
+    upd('risquesPlacement', [...state.risquesPlacement.filter(r => r.id !== id), { id, type, nom, risque }])
 
   useEffect(() => {
     localStorage.setItem('patrisim_bloc6', JSON.stringify(state))
@@ -397,6 +454,64 @@ export default function Bloc6() {
                   />
                 </Field>
               </div>
+
+              {/* ══ CONNAISSANCE FINANCIÈRE ══════════════════════════════════ */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
+                <SectionTitle>Connaissance financière</SectionTitle>
+                {([
+                  { cf: state.cf1, setCf: (c: ConnaissanceFinanciere) => upd('cf1', c), label: p1Label, isP2: false },
+                  ...(isCouple ? [{ cf: state.cf2, setCf: (c: ConnaissanceFinanciere) => upd('cf2', c), label: p2Label, isP2: true }] : []),
+                ] as { cf: ConnaissanceFinanciere; setCf: (c: ConnaissanceFinanciere) => void; label: string; isP2: boolean }[]).map(({ cf, setCf, label, isP2 }) => (
+                  <div key={label} className="space-y-4">
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold ${isP2 ? 'bg-[#E1F5EE] text-[#085041]' : 'bg-[#E6F1FB] text-[#0C447C]'}`}>
+                      <div className={`w-1.5 h-1.5 rounded-full ${isP2 ? 'bg-[#0F6E56]' : 'bg-[#185FA5]'}`} />{label}
+                    </div>
+                    <Field label="Niveau de connaissance financière">
+                      <div className="flex flex-wrap gap-2">
+                        {niveauxCF.map(({ label: lbl, tooltip }) => (
+                          <div key={lbl} className="group relative">
+                            <button type="button" onClick={() => setCf({ ...cf, niveauGeneral: lbl })}
+                              className={`px-4 py-2 rounded-lg text-[13px] border transition-all ${cf.niveauGeneral === lbl ? (isP2 ? 'bg-[#0F6E56] border-[#0F6E56] text-white' : 'bg-[#185FA5] border-[#185FA5] text-white') : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'}`}>
+                              {lbl}
+                            </button>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-[11px] px-3 py-2 rounded-lg w-48 hidden group-hover:block z-20 leading-relaxed shadow-xl text-center pointer-events-none">
+                              {tooltip}<div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Field>
+                    <Field label="Produits déjà détenus ou utilisés">
+                      <div className="flex flex-wrap gap-2">
+                        {produitsCF.map(p => (
+                          <button key={p} type="button"
+                            onClick={() => { const next = cf.produits.includes(p) ? cf.produits.filter(x => x !== p) : [...cf.produits, p]; setCf({ ...cf, produits: next }) }}
+                            className={`px-3.5 py-1.5 rounded-lg text-[12px] border transition-all ${cf.produits.includes(p) ? (isP2 ? 'bg-[#E1F5EE] border-[#0F6E56] text-[#085041]' : 'bg-[#E6F1FB] border-[#185FA5] text-[#0C447C]') : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                            {p}
+                          </button>
+                        ))}
+                      </div>
+                      {cf.produits.length > 0 && <p className="mt-2 text-[11px] text-gray-400">{cf.produits.length} produit{cf.produits.length > 1 ? 's' : ''} sélectionné{cf.produits.length > 1 ? 's' : ''}</p>}
+                    </Field>
+                  </div>
+                ))}
+              </div>
+
+              {/* ══ RISQUES PLACEMENTS ════════════════════════════════════════ */}
+              {allPlacements.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+                  <SectionTitle>Niveau de risque par placement</SectionTitle>
+                  {allPlacements.map(pl => (
+                    <Field key={pl.id} label={`${pl.type} — ${pl.nom}`}>
+                      <Chips small
+                        options={['Faible', 'Modéré', 'Élevé', 'Très élevé']}
+                        value={getRisque(pl.id)}
+                        onChange={v => setRisque(pl.id, pl.type, pl.nom, v as string)}
+                      />
+                    </Field>
+                  ))}
+                </div>
+              )}
 
               {/* Synthèse */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
