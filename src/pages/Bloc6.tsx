@@ -165,8 +165,10 @@ const MIFID_QUESTIONS = [
 export default function Bloc6() {
   const navigate = useNavigate()
 
-  // Récupérer l'objectif depuis Bloc0
-  const bloc0 = loadLS<{objectif?: string}>('patrisim_bloc0', {})
+  // Récupérer l'objectif et le niveau de détail depuis Bloc0
+  const bloc0 = loadLS<{objectif?: string; niveauDetail?: 'rapide' | 'complet'}>('patrisim_bloc0', {})
+  const niveauDetail = bloc0.niveauDetail || 'complet'
+  const isRapide = niveauDetail === 'rapide'
   const objectifPrincipal = bloc0.objectif || 'bilan'
 
   const OBJECTIF_LABELS: Record<string, string> = {
@@ -274,9 +276,11 @@ export default function Bloc6() {
         {/* ══ MiFID II ══════════════════════════════════════════════════════ */}
         <FadeIn delay={0.08}>
         <SectionTitle>Questionnaire MiFID II — Profil de risque</SectionTitle>
-        <InfoCard color="blue">
-          Ce questionnaire est conforme aux exigences MiFID II. Vos réponses déterminent votre profil investisseur officiel.
-        </InfoCard>
+        {!isRapide && (
+          <InfoCard color="blue">
+            Ce questionnaire est conforme aux exigences MiFID II. Vos réponses déterminent votre profil investisseur officiel.
+          </InfoCard>
+        )}
 
         <div className="mt-6 space-y-4">
           {!state.mifidDone ? (
@@ -363,14 +367,16 @@ export default function Bloc6() {
                   {profil.label === 'Dynamique' && 'Vous recherchez la performance sur le long terme et acceptez la volatilité. Placements adaptés : actions, ETF, PEA, SCPI.'}
                   {profil.label === 'Offensif' && 'Vous acceptez une volatilité élevée pour maximiser le rendement. Placements adaptés : actions individuelles, ETF sectoriels, private equity.'}
                 </div>
-                <button type="button" onClick={() => { upd('mifidDone', false); setCurrentQ(0) }}
-                  className="text-[12px] text-gray-400 hover:text-gray-600 mt-3 underline">
-                  Refaire le questionnaire
-                </button>
+                {!isRapide && (
+                  <button type="button" onClick={() => { upd('mifidDone', false); setCurrentQ(0) }}
+                    className="text-[12px] text-gray-400 hover:text-gray-600 mt-3 underline">
+                    Refaire le questionnaire
+                  </button>
+                )}
               </div>
 
-              {/* ══ CONVICTIONS ══════════════════════════════════════════════ */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+              {/* ══ CONVICTIONS (complet uniquement) ════════════════════════ */}
+              {!isRapide && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
                 <SectionTitle>Convictions & préférences d'investissement</SectionTitle>
 
                 <div className="space-y-2">
@@ -420,7 +426,7 @@ export default function Bloc6() {
                     </Field>
                   </div>
                 )}
-              </div>
+              </div>}
 
               {/* ══ SUIVI ═════════════════════════════════════════════════════ */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
@@ -438,13 +444,16 @@ export default function Bloc6() {
                   </div>
                 </Field>
 
-                <Field label="Fréquence de suivi souhaitée">
-                  <Chips small
-                    options={['Mensuelle','Trimestrielle','Semestrielle','Annuelle']}
-                    value={state.suiviFrequence}
-                    onChange={v => upd('suiviFrequence', v as string)}
-                  />
-                </Field>
+                {/* Fréquence de suivi — complet uniquement */}
+                {!isRapide && (
+                  <Field label="Fréquence de suivi souhaitée">
+                    <Chips small
+                      options={['Mensuelle','Trimestrielle','Semestrielle','Annuelle']}
+                      value={state.suiviFrequence}
+                      onChange={v => upd('suiviFrequence', v as string)}
+                    />
+                  </Field>
+                )}
 
                 <Field label="Mode de conseil préféré">
                   <Chips small
@@ -455,8 +464,8 @@ export default function Bloc6() {
                 </Field>
               </div>
 
-              {/* ══ CONNAISSANCE FINANCIÈRE ══════════════════════════════════ */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
+              {/* ══ CONNAISSANCE FINANCIÈRE (complet uniquement) ═════════════ */}
+              {!isRapide && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
                 <SectionTitle>Connaissance financière</SectionTitle>
                 {([
                   { cf: state.cf1, setCf: (c: ConnaissanceFinanciere) => upd('cf1', c), label: p1Label, isP2: false },
@@ -495,10 +504,10 @@ export default function Bloc6() {
                     </Field>
                   </div>
                 ))}
-              </div>
+              </div>}
 
-              {/* ══ RISQUES PLACEMENTS ════════════════════════════════════════ */}
-              {allPlacements.length > 0 && (
+              {/* ══ RISQUES PLACEMENTS (complet uniquement) ═══════════════════ */}
+              {!isRapide && allPlacements.length > 0 && (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
                   <SectionTitle>Niveau de risque par placement</SectionTitle>
                   {allPlacements.map(pl => (

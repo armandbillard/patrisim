@@ -23,52 +23,49 @@ interface LocationInfo {
   bailEnCours: boolean; bail: BailInfo
 }
 interface BienImmobilier {
-  id: string; typeBien: string; ville: string; codePostal: string
-  surface: string; anneeAchat: string; prixAchat: string; travaux: string
+  id: string; typeBien: string; anneeAchat: string; prixAchat: string; travaux: string
   modeFinancement: string; natureJuridique: string; valeurEstimee: string
   dateEvaluation: string; modeDetention: ModeDetention
   quotePartIndivision: string; sciNom: string; sciParts: string
   demembrement: Demembrement; loue: boolean; location: LocationInfo; collapsed: boolean
 }
 interface ScpiDirecte {
-  id: string; nom: string; societeGestion: string; type: string
-  nbParts: string; prixSouscription: string; prixRetrait: string
+  id: string; type: string
+  nbParts: string; prixSouscription: string
   dividendesAnnuels: string; natureJuridique: string
   modeDetention: 'Pleine propriété' | 'Démembrement' | ''; demembrement: Demembrement
 }
 
 // ── Actif financier types ─────────────────────────────────────────────────────
 interface CompteCourant {
-  id: string; etablissement: string; solde: string
+  id: string; solde: string
   titulaire: string
 }
 interface Livret {
-  id: string; type: string; taux: string; etablissement: string
+  id: string; type: string; taux: string
   solde: string; dateOuverture: string; dateEcheance: string
   titulaire: string
 }
 interface Pea {
-  id: string; titulaire: string; etablissement: string
+  id: string; titulaire: string
   dateOuverture: string; valeur: string; versements: string
-  composition: string[]; rendement: string
+  rendement: string
   aPeaPme: boolean; peaPmeEtab: string; peaPmeValeur: string; peaPmeVersements: string
 }
 interface Cto {
-  id: string; etablissement: string; valeur: string; prixRevient: string
-  titulaire: string; composition: string[]
-  rendement: string; secteur: string
+  id: string; valeur: string; prixRevient: string
+  titulaire: string
+  rendement: string
 }
 interface AssuranceVie {
-  id: string; nom: string; compagnie: string; dateOuverture: string
+  id: string; compagnie: string; dateOuverture: string
   valeurRachat: string; versements: string; fondsEurosPct: number
-  ucDetail: string[]; rendement: string
-  avancesRachats: boolean; montantRachete: string; titulaire: string
+  rendement: string; titulaire: string
 }
 interface Per {
   id: string; type: string; etablissement: string; valeur: string
   versementsVolontaires: string; versementsEmployeur: string
-  fondsEurosPct: number; ucDetail: string[]; rendement: string; risque: string
-  modeSortie: string; deblocage: boolean; montantDebloque: string; motifDeblocage: string
+  fondsEurosPct: number; rendement: string
   titulaire: string
 }
 interface EpargneSalariale {
@@ -76,8 +73,7 @@ interface EpargneSalariale {
   disponibilite: string; dateDeblocage: string; titulaire: string
 }
 interface Crypto {
-  valeur: string; prixRevient: string; plateformeDeclaree: boolean
-  composition: string[]; titulaire: string
+  valeur: string; prixRevient: string; titulaire: string
 }
 interface AutrePlacement {
   orPhysique: boolean; orForme: string; orValeur: string
@@ -95,11 +91,6 @@ interface OeuvreArt { description: string; valeur: string; expertise: boolean; d
 interface ForetTerre { surface: string; departement: string; valeur: string }
 interface PartSociale { id: string; nomSociete: string; formeJuridique: string; pctDetenu: string; valeur: string; methodeValorisation: string; dateValorisation: string; natureJuridique: string }
 interface AutreActif { description: string; valeur: string }
-
-interface OriginePatrimoine {
-  epargne: number; heritage: number; cessionImmo: number
-  cessionEntreprise: number; pvFinancieres: number; indemnites: number; autre: number
-}
 
 interface Bloc2State {
   // A - Immobilier
@@ -120,28 +111,27 @@ interface Bloc2State {
   aAutresActifs: boolean; typesAutresActifs: string[]
   vehicules: Vehicule[]; oeuvreArt: OeuvreArt; foretTerre: ForetTerre
   partsSociales: PartSociale[]; autreActif: AutreActif
-  // D - Origine
-  origine: OriginePatrimoine
   // UI
   showSynthese: boolean
+  immoRapideTotal: string
+  financierRapideTotal: string
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 const defaultDemembrement = (): Demembrement => ({ role: '', valeurConnue: false, valeurNP: '', ageUsufruitier: '', dateConstitution: '', beneficiaire: '' })
 const defaultLocation = (): LocationInfo => ({ meuble: '', regimeFiscalNM: '', dispositif: '', statutLMNP: '', regimeFiscalM: '', loyerMensuel: '', tauxOccupation: '100', chargesAnnuelles: '', bailEnCours: false, bail: { typeBail: '', dateDebut: '' } })
-const defaultBien = (): BienImmobilier => ({ id: crypto.randomUUID(), typeBien: '', ville: '', codePostal: '', surface: '', anneeAchat: '', prixAchat: '', travaux: '0', modeFinancement: '', natureJuridique: '', valeurEstimee: '', dateEvaluation: '', modeDetention: '', quotePartIndivision: '50', sciNom: '', sciParts: '', demembrement: defaultDemembrement(), loue: false, location: defaultLocation(), collapsed: false })
-const defaultScpi = (): ScpiDirecte => ({ id: crypto.randomUUID(), nom: '', societeGestion: '', type: '', nbParts: '', prixSouscription: '', prixRetrait: '', dividendesAnnuels: '', natureJuridique: '', modeDetention: '', demembrement: defaultDemembrement() })
-const defaultCC = (): CompteCourant => ({ id: crypto.randomUUID(), etablissement: '', solde: '', titulaire: '' })
-const defaultLivret = (): Livret => ({ id: crypto.randomUUID(), type: '', taux: '', etablissement: '', solde: '', dateOuverture: '', dateEcheance: '', titulaire: '' })
-const defaultPea = (): Pea => ({ id: crypto.randomUUID(), titulaire: '', etablissement: '', dateOuverture: '', valeur: '', versements: '', composition: [], rendement: '', aPeaPme: false, peaPmeEtab: '', peaPmeValeur: '', peaPmeVersements: '' })
-const defaultCto = (): Cto => ({ id: crypto.randomUUID(), etablissement: '', valeur: '', prixRevient: '', titulaire: '', composition: [], rendement: '', secteur: '' })
-const defaultAv = (): AssuranceVie => ({ id: crypto.randomUUID(), nom: '', compagnie: '', dateOuverture: '', valeurRachat: '', versements: '', fondsEurosPct: 80, ucDetail: [], rendement: '', avancesRachats: false, montantRachete: '', titulaire: '' })
-const defaultPer = (): Per => ({ id: crypto.randomUUID(), type: '', etablissement: '', valeur: '', versementsVolontaires: '', versementsEmployeur: '', fondsEurosPct: 60, ucDetail: [], rendement: '', risque: '', modeSortie: '', deblocage: false, montantDebloque: '', motifDeblocage: '', titulaire: '' })
+const defaultBien = (): BienImmobilier => ({ id: crypto.randomUUID(), typeBien: '', anneeAchat: '', prixAchat: '', travaux: '0', modeFinancement: '', natureJuridique: '', valeurEstimee: '', dateEvaluation: '', modeDetention: '', quotePartIndivision: '50', sciNom: '', sciParts: '', demembrement: defaultDemembrement(), loue: false, location: defaultLocation(), collapsed: false })
+const defaultScpi = (): ScpiDirecte => ({ id: crypto.randomUUID(), type: '', nbParts: '', prixSouscription: '', dividendesAnnuels: '', natureJuridique: '', modeDetention: '', demembrement: defaultDemembrement() })
+const defaultCC = (): CompteCourant => ({ id: crypto.randomUUID(), solde: '', titulaire: '' })
+const defaultLivret = (): Livret => ({ id: crypto.randomUUID(), type: '', taux: '', solde: '', dateOuverture: '', dateEcheance: '', titulaire: '' })
+const defaultPea = (): Pea => ({ id: crypto.randomUUID(), titulaire: '', dateOuverture: '', valeur: '', versements: '', rendement: '', aPeaPme: false, peaPmeEtab: '', peaPmeValeur: '', peaPmeVersements: '' })
+const defaultCto = (): Cto => ({ id: crypto.randomUUID(), valeur: '', prixRevient: '', titulaire: '', rendement: '' })
+const defaultAv = (): AssuranceVie => ({ id: crypto.randomUUID(), compagnie: '', dateOuverture: '', valeurRachat: '', versements: '', fondsEurosPct: 80, rendement: '', titulaire: '' })
+const defaultPer = (): Per => ({ id: crypto.randomUUID(), type: '', etablissement: '', valeur: '', versementsVolontaires: '', versementsEmployeur: '', fondsEurosPct: 60, rendement: '', titulaire: '' })
 const defaultES = (): EpargneSalariale => ({ type: '', entreprise: '', valeur: '', disponibilite: '', dateDeblocage: '', titulaire: '' })
-const defaultCrypto = (): Crypto => ({ valeur: '', prixRevient: '', plateformeDeclaree: false, composition: [], titulaire: '' })
+const defaultCrypto = (): Crypto => ({ valeur: '', prixRevient: '', titulaire: '' })
 const defaultAutrePlacement = (): AutrePlacement => ({ orPhysique: false, orForme: '', orValeur: '', produitStructure: false, psEmetteur: '', psValeur: '', psEcheance: '', psGaranti: false, psRendement: '', psRisque: '', pretTiers: false, pretBeneficiaire: '', pretMontant: '', pretTaux: '', pretEcheance: '', autre: false, autreDesc: '', autreValeur: '', autreRendement: '', autreRisque: '' })
-const defaultOrigine = (): OriginePatrimoine => ({ epargne: 0, heritage: 0, cessionImmo: 0, cessionEntreprise: 0, pvFinancieres: 0, indemnites: 0, autre: 0 })
 const defaultPartSociale = (): PartSociale => ({ id: crypto.randomUUID(), nomSociete: '', formeJuridique: '', pctDetenu: '', valeur: '', methodeValorisation: '', dateValorisation: '', natureJuridique: '' })
 const defaultVehicule = (): Vehicule => ({ id: crypto.randomUUID(), marque: '', modele: '', annee: '', valeur: '' })
 
@@ -155,7 +145,8 @@ const defaultState = (): Bloc2State => ({
   oeuvreArt: { description: '', valeur: '', expertise: false, dateExpertise: '', montantExpertise: '' },
   foretTerre: { surface: '', departement: '', valeur: '' },
   partsSociales: [], autreActif: { description: '', valeur: '' },
-  origine: defaultOrigine(), showSynthese: false,
+  showSynthese: false,
+  immoRapideTotal: '', financierRapideTotal: '',
 })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -169,13 +160,6 @@ function loadFromStorage<T extends object>(key: string, fallback: T): T {
 }
 function fmt(n: number) { return n.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) }
 function parseNum(s: string) { const n = parseFloat(String(s).replace(/\s/g, '').replace(',', '.')); return isNaN(n) ? 0 : n }
-function detectZone(cp: string) {
-  if (!cp || cp.length < 2) return null
-  const d = cp.substring(0, 2)
-  if (['75','92','93','94'].includes(d)) return { label: 'Zone Paris', taux: 0.025 }
-  if (['13','31','33','34','44','59','67','69','76'].includes(d)) return { label: 'Grande métropole', taux: 0.02 }
-  return { label: 'Zone rurale', taux: 0.01 }
-}
 function calcCGI669(age: number) {
   if (age < 21) return { usufruit: 90, np: 10 }
   if (age <= 30) return { usufruit: 80, np: 20 }
@@ -190,7 +174,7 @@ function calcCGI669(age: number) {
 function autoEstimate(bien: BienImmobilier) {
   const achat = parseNum(bien.prixAchat), travaux = parseNum(bien.travaux), annee = parseInt(bien.anneeAchat)
   if (!achat || !annee) return null
-  const zone = detectZone(bien.codePostal), taux = zone?.taux ?? 0.01
+  const taux = 0.01
   const annees = new Date().getFullYear() - annee
   if (annees < 0) return null
   return Math.round((achat + travaux) * Math.pow(1 + taux, annees))
@@ -453,10 +437,9 @@ function LocationFields({ loc, onChange }: { loc: LocationInfo; onChange: (l: Lo
 // ─── BienCard ─────────────────────────────────────────────────────────────────
 function BienCard({ bien, onChange, isRP = false, regimeMatrimonial = '', statutMatrimonial = '', p1Label = 'Personne 1', p2Label = 'Personne 2' }: { bien: BienImmobilier; onChange: (b: BienImmobilier) => void; isRP?: boolean; regimeMatrimonial?: string; statutMatrimonial?: string; p1Label?: string; p2Label?: string }) {
   const upd = <K extends keyof BienImmobilier>(k: K, v: BienImmobilier[K]) => onChange({ ...bien, [k]: v })
-  const zone = bien.codePostal.length >= 2 ? detectZone(bien.codePostal) : null
   const estimation = autoEstimate(bien)
   const valeurAffichee = bien.valeurEstimee ? parseNum(bien.valeurEstimee) : (estimation ?? 0)
-  const summaryLabel = [bien.typeBien, bien.ville].filter(Boolean).join(' · ')
+  const summaryLabel = bien.typeBien || ''
   const summaryVal = valeurAffichee > 0 ? `${fmt(valeurAffichee)} €` : ''
   const propre1 = `Bien propre ${p1Label}`, propre2 = `Bien propre ${p2Label}`
   const defaultNature = (() => {
@@ -478,19 +461,7 @@ function BienCard({ bien, onChange, isRP = false, regimeMatrimonial = '', statut
       {!bien.collapsed && (
         <div className="px-6 pb-6 space-y-5 border-t border-gray-50">
           <div className="pt-4"><Field label="Type de bien"><Chips options={isRP ? typesBienRP : typesBienAutre} value={bien.typeBien} onChange={v => upd('typeBien', v as string)} /></Field></div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2"><Field label="Ville"><Input value={bien.ville} onChange={v => upd('ville', v)} placeholder="Lyon" /></Field></div>
-            <Field label="Code postal">
-              <div className="space-y-1.5">
-                <Input value={bien.codePostal} onChange={v => upd('codePostal', v)} placeholder="69000" />
-                {zone && <Badge color="blue">{zone.label} · +{(zone.taux*100).toFixed(1)}%/an</Badge>}
-              </div>
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Surface (optionnel)"><Input type="number" value={bien.surface} onChange={v => upd('surface', v)} placeholder="80" suffix="m²" /></Field>
-            <Field label="Année d'achat"><Input type="number" value={bien.anneeAchat} onChange={v => upd('anneeAchat', v)} placeholder="2015" /></Field>
-          </div>
+          <Field label="Année d'achat"><Input type="number" value={bien.anneeAchat} onChange={v => upd('anneeAchat', v)} placeholder="2015" /></Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Prix d'achat"><Input value={bien.prixAchat} onChange={v => upd('prixAchat', v)} placeholder="200 000" suffix="€" /></Field>
             <Field label="Travaux réalisés"><Input value={bien.travaux} onChange={v => upd('travaux', v)} placeholder="0" suffix="€" /></Field>
@@ -501,7 +472,7 @@ function BienCard({ bien, onChange, isRP = false, regimeMatrimonial = '', statut
             <Field label="Valeur estimée actuelle">
               <div className="space-y-1.5">
                 <Input value={bien.valeurEstimee} onChange={v => upd('valeurEstimee', v)} placeholder="—" suffix="€" />
-                {!bien.valeurEstimee && estimation !== null && <p className="text-[11px] text-gray-400 italic">Auto : <strong className="text-gray-600">{fmt(estimation)} €</strong>{zone ? ` · +${(zone.taux*100).toFixed(1)}%/an depuis ${bien.anneeAchat}` : ''}</p>}
+                {!bien.valeurEstimee && estimation !== null && <p className="text-[11px] text-gray-400 italic">Auto : <strong className="text-gray-600">{fmt(estimation)} €</strong></p>}
               </div>
             </Field>
             <Field label="Date dernière évaluation (optionnel)"><Input type="date" value={bien.dateEvaluation} onChange={v => upd('dateEvaluation', v)} /></Field>
@@ -525,111 +496,29 @@ function BienCard({ bien, onChange, isRP = false, regimeMatrimonial = '', statut
 // ─── ScpiCard ─────────────────────────────────────────────────────────────────
 function ScpiCard({ scpi, onChange, onRemove, p1Label = 'Personne 1', p2Label = 'Personne 2' }: { scpi: ScpiDirecte; onChange: (s: ScpiDirecte) => void; onRemove: () => void; p1Label?: string; p2Label?: string }) {
   const upd = <K extends keyof ScpiDirecte>(k: K, v: ScpiDirecte[K]) => onChange({ ...scpi, [k]: v })
-  const nb = parseNum(scpi.nbParts), ps = parseNum(scpi.prixSouscription), pr = parseNum(scpi.prixRetrait)
-  const valAchat = nb * ps, valActuelle = nb * pr, pv = valActuelle - valAchat
+  const nb = parseNum(scpi.nbParts), ps = parseNum(scpi.prixSouscription)
+  const valAchat = nb * ps
   return (
-    <CardWrap title={scpi.nom || 'Nouvelle SCPI'} subtitle={valActuelle > 0 ? `${fmt(valActuelle)} €` : undefined} onRemove={onRemove}>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Nom de la SCPI"><Input value={scpi.nom} onChange={v => upd('nom', v)} placeholder="Immorente" /></Field>
-        <Field label="Société de gestion"><Input value={scpi.societeGestion} onChange={v => upd('societeGestion', v)} placeholder="Sofidy" /></Field>
-      </div>
+    <CardWrap title={scpi.type || 'Nouvelle SCPI'} subtitle={valAchat > 0 ? `${fmt(valAchat)} €` : undefined} onRemove={onRemove}>
       <Field label="Type"><Chips options={['SCPI de rendement', 'SCPI de plus-value', 'SCPI fiscale (Pinel/Malraux/Déficit)']} value={scpi.type} onChange={v => upd('type', v as string)} small /></Field>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Field label="Nombre de parts"><Input type="number" value={scpi.nbParts} onChange={v => upd('nbParts', v)} placeholder="100" /></Field>
         <Field label="Prix souscription / part"><Input value={scpi.prixSouscription} onChange={v => upd('prixSouscription', v)} placeholder="1 000" suffix="€" /></Field>
-        <Field label="Prix retrait / part"><Input value={scpi.prixRetrait} onChange={v => upd('prixRetrait', v)} placeholder="1 050" suffix="€" /></Field>
       </div>
-      {valActuelle > 0 && (
-        <div className="grid grid-cols-3 gap-3">
+      {valAchat > 0 && (
+        <div className="grid grid-cols-2 gap-3">
           <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="text-[10px] text-gray-400 uppercase mb-1">Valeur achat</p><p className="text-[13px] font-semibold text-gray-700">{fmt(valAchat)} €</p></div>
-          <div className="bg-[#E6F1FB] rounded-xl p-3 text-center"><p className="text-[10px] text-gray-400 uppercase mb-1">Valeur actuelle</p><p className="text-[13px] font-semibold text-[#185FA5]">{fmt(valActuelle)} €</p></div>
-          <div className={`rounded-xl p-3 text-center ${pv >= 0 ? 'bg-[#E1F5EE]' : 'bg-red-50'}`}><p className="text-[10px] text-gray-400 uppercase mb-1">Plus-value</p><p className={`text-[13px] font-semibold ${pv >= 0 ? 'text-[#0F6E56]' : 'text-red-600'}`}>{pv >= 0 ? '+' : ''}{fmt(pv)} €</p></div>
+          <div className="bg-[#E6F1FB] rounded-xl p-3 text-center"><p className="text-[10px] text-gray-400 uppercase mb-1">Valeur actuelle</p><p className="text-[13px] font-semibold text-[#185FA5]">{fmt(valAchat)} €</p></div>
         </div>
       )}
       <Field label="Dividendes annuels perçus"><Input value={scpi.dividendesAnnuels} onChange={v => upd('dividendesAnnuels', v)} placeholder="0" suffix="€/an" /></Field>
       <Field label="Nature juridique"><Chips options={[`Bien propre ${p1Label}`, `Bien propre ${p2Label}`, 'Bien commun']} value={scpi.natureJuridique} onChange={v => upd('natureJuridique', v as string)} small /></Field>
       <Field label="Mode de détention"><Chips options={['Pleine propriété', 'Démembrement']} value={scpi.modeDetention} onChange={v => upd('modeDetention', v as ScpiDirecte['modeDetention'])} /></Field>
-      {scpi.modeDetention === 'Démembrement' && <DemembrementFields d={scpi.demembrement} onChange={d => upd('demembrement', d)} valeurRef={valActuelle} />}
+      {scpi.modeDetention === 'Démembrement' && <DemembrementFields d={scpi.demembrement} onChange={d => upd('demembrement', d)} valeurRef={valAchat} />}
     </CardWrap>
   )
 }
 
-// ─── CompositionFonds (AV / PER slider) ──────────────────────────────────────
-function CompositionFonds({ pct, onChange, valeur, ucDetail, onUcChange }: { pct: number; onChange: (n: number) => void; valeur: number; ucDetail: string[]; onUcChange: (v: string[]) => void }) {
-  const ucPct = 100 - pct
-  const feVal = valeur * pct / 100, ucVal = valeur * ucPct / 100
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-between text-[11px] text-gray-500 mb-1">
-        <span>Fonds euros : <strong>{pct}%</strong>{valeur > 0 ? ` (${fmt(feVal)} €)` : ''}</span>
-        <span>UC : <strong>{ucPct}%</strong>{valeur > 0 ? ` (${fmt(ucVal)} €)` : ''}</span>
-      </div>
-      <input type="range" min={0} max={100} value={pct} onChange={e => onChange(Number(e.target.value))}
-        className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#185FA5]" />
-      {ucPct > 0 && (
-        <Field label="Détail UC">
-          <Chips options={['ETF', 'SCPI en UC', 'Private equity', 'Immobilier pierre-papier', 'Actions', 'Obligations', 'Produits structurés', 'Autres']} value={ucDetail} onChange={v => onUcChange(v as string[])} multi small />
-        </Field>
-      )}
-    </div>
-  )
-}
-
-// ─── OrigineSliders ───────────────────────────────────────────────────────────
-function OrigineSliders({ origine, onChange }: { origine: OriginePatrimoine; onChange: (o: OriginePatrimoine) => void }) {
-  const items: { key: keyof OriginePatrimoine; label: string }[] = [
-    { key: 'epargne', label: 'Épargne sur revenus professionnels' },
-    { key: 'heritage', label: 'Héritage ou donation reçue' },
-    { key: 'cessionImmo', label: 'Cession immobilière' },
-    { key: 'cessionEntreprise', label: "Cession d'entreprise ou de parts" },
-    { key: 'pvFinancieres', label: 'Plus-values financières' },
-    { key: 'indemnites', label: 'Indemnités (licenciement, accident…)' },
-    { key: 'autre', label: 'Autre' },
-  ]
-  const total = Object.values(origine).reduce((a, b) => a + b, 0)
-  const isComplete = total === 100
-  const restant = 100 - total
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-      <h3 className="text-[15px] font-semibold text-gray-800 mb-1">Comment votre patrimoine s'est-il constitué ?</h3>
-      <p className="text-[12px] text-gray-400 mb-5">Répartissez en % — le total doit atteindre 100%</p>
-      <div className="space-y-4">
-        {items.map(({ key, label }) => {
-          const maxVal = Math.max(0, origine[key] + restant)
-          return (
-            <div key={key}>
-              <div className="flex justify-between mb-1">
-                <span className="text-[12px] text-gray-600">{label}</span>
-                <span className="text-[12px] font-semibold text-[#185FA5]">{origine[key]}%</span>
-              </div>
-              <input type="range" min={0} max={maxVal} value={origine[key]}
-                onChange={e => onChange({ ...origine, [key]: Number(e.target.value) })}
-                className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#185FA5]"
-              />
-            </div>
-          )
-        })}
-      </div>
-      <div className="mt-5">
-        <div className="flex justify-between text-[12px] mb-2">
-          <span className="text-gray-500">Total</span>
-          <span className={`font-bold ${isComplete ? 'text-[#0F6E56]' : 'text-amber-600'}`}>
-            {total}%
-          </span>
-        </div>
-        <div className="flex justify-between text-[12px] mb-2">
-          <span className="text-gray-400">Répartition restante</span>
-          <span className={`font-semibold ${isComplete ? 'text-[#0F6E56]' : 'text-amber-600'}`}>
-            {restant}%
-          </span>
-        </div>
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full transition-all ${isComplete ? 'bg-[#0F6E56]' : 'bg-[#185FA5]'}`} style={{ width: `${Math.min(total, 100)}%` }} />
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Bloc2() {
@@ -639,6 +528,8 @@ export default function Bloc2() {
   const p1Data = loadFromStorage<{ prenom?: string }>('patrisim_bloc1_p1', {})
   const p2Data = loadFromStorage<{ prenom?: string }>('patrisim_bloc1_p2', {})
   const modeData = loadFromStorage<{ v?: string }>('patrisim_bloc1_mode', {})
+  const bloc0 = loadFromStorage<{ niveauDetail?: string }>('patrisim_bloc0', {})
+  const isRapide = (bloc0.niveauDetail || 'complet') === 'rapide'
   const isCouple = modeData.v === 'couple'
   const p1Label = p1Data.prenom?.trim() || 'Personne 1'
   const p2Label = p2Data.prenom?.trim() || 'Personne 2'
@@ -660,7 +551,7 @@ export default function Bloc2() {
   const totalImmo = (() => {
     let t = state.proprietaireRP ? bienValeur(state.rp) : 0
     t += state.biens.reduce((a, b) => a + bienValeur(b), 0)
-    t += state.scpis.reduce((a, s) => a + parseNum(s.nbParts) * parseNum(s.prixRetrait), 0)
+    t += state.scpis.reduce((a, s) => a + parseNum(s.nbParts) * parseNum(s.prixSouscription), 0)
     return t
   })()
   const totalFinancier = (() => {
@@ -694,7 +585,7 @@ export default function Bloc2() {
     t += state.ctos.reduce((a, c) => a + (parseNum(c.valeur) - parseNum(c.prixRevient)), 0)
     t += state.avs.reduce((a, av) => a + (parseNum(av.valeurRachat) - parseNum(av.versements)), 0)
     if (state.aCrypto) t += parseNum(state.crypto.valeur) - parseNum(state.crypto.prixRevient)
-    t += state.scpis.reduce((a, s) => { const nb = parseNum(s.nbParts); return a + nb * parseNum(s.prixRetrait) - nb * parseNum(s.prixSouscription) }, 0)
+    t += state.scpis.reduce((a, s) => { const nb = parseNum(s.nbParts); return a + nb * parseNum(s.prixSouscription) - nb * parseNum(s.prixSouscription) }, 0)
     return t
   })()
 
@@ -713,8 +604,6 @@ export default function Bloc2() {
     state.epargneSalariale.length,
     state.aCrypto ? 1 : 0,
   ].reduce((a, b) => a + b, 0)
-
-  const origineTotal = Object.values(state.origine).reduce((a, b) => a + b, 0)
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const addBien = () => upd('biens', [...state.biens, defaultBien()])
@@ -779,6 +668,42 @@ export default function Bloc2() {
           <p className="text-[14px] text-gray-400 mt-1.5 max-w-xl">Renseignez l'ensemble de vos biens et placements. Répondez uniquement aux sections qui vous concernent.</p>
         </div>
 
+        {/* ══ VERSION RAPIDE ══════════════════════════════════════════════════ */}
+        {isRapide && (
+          <FadeIn delay={0}>
+            <SectionDivider label="Patrimoine (version rapide)" />
+            <div className="space-y-5 mb-8">
+              <div className="mb-6">
+                <Field label="Êtes-vous propriétaire de votre résidence principale ?"><Toggle value={state.proprietaireRP} onChange={v => upd('proprietaireRP', v)} /></Field>
+                {state.proprietaireRP && (
+                  <div className="mt-4">
+                    <Field label="Valeur estimée de la résidence principale">
+                      <Input value={state.rp.valeurEstimee} onChange={v => upd('rp', { ...state.rp, valeurEstimee: v })} placeholder="0" suffix="€" />
+                    </Field>
+                  </div>
+                )}
+              </div>
+              <Field label="Total patrimoine immobilier (hors RP)">
+                <Input value={state.immoRapideTotal} onChange={v => upd('immoRapideTotal', v)} placeholder="0" suffix="€" />
+              </Field>
+              <Field label="Total actifs financiers">
+                <Input value={state.financierRapideTotal} onChange={v => upd('financierRapideTotal', v)} placeholder="0" suffix="€" />
+              </Field>
+              {(state.proprietaireRP || state.immoRapideTotal || state.financierRapideTotal) && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2">Total patrimoine estimé</p>
+                  <p className="text-[22px] font-bold text-[#185FA5]">
+                    {fmt((state.proprietaireRP ? bienValeur(state.rp) : 0) + parseNum(state.immoRapideTotal) + parseNum(state.financierRapideTotal))} €
+                  </p>
+                </div>
+              )}
+            </div>
+          </FadeIn>
+        )}
+
+        {/* ══ A, B, C — DÉTAIL COMPLET ════════════════════════════════════════ */}
+        {!isRapide && (<>
+
         {/* ══ A — IMMOBILIER ══════════════════════════════════════════════════ */}
         <FadeIn delay={0}>
         <SectionDivider label="A — Immobilier" />
@@ -821,6 +746,7 @@ export default function Bloc2() {
 
         {/* ══ B — ACTIF FINANCIER ═════════════════════════════════════════════ */}
         <FadeIn delay={0.08}>
+
         <SectionDivider label="B — Actif financier" />
 
         {/* Comptes courants */}
@@ -832,13 +758,9 @@ export default function Bloc2() {
               <AnimatePresence>
               {state.comptesCourants.map(c => (
                 <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
-                <CardWrap title={c.etablissement || 'Compte courant'} subtitle={c.solde ? `${fmt(parseNum(c.solde))} €` : undefined} onRemove={() => removeCC(c.id)}>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Établissement"><Input value={c.etablissement} onChange={v => updateCC(c.id, { ...c, etablissement: v })} placeholder="BNP Paribas" /></Field>
-                    <Field label="Solde moyen estimé"><Input value={c.solde} onChange={v => updateCC(c.id, { ...c, solde: v })} placeholder="0" suffix="€" /></Field>
-                  </div>
+                <CardWrap title="Compte courant" subtitle={c.solde ? `${fmt(parseNum(c.solde))} €` : undefined} onRemove={() => removeCC(c.id)}>
+                  <Field label="Solde moyen estimé"><Input value={c.solde} onChange={v => updateCC(c.id, { ...c, solde: v })} placeholder="0" suffix="€" /></Field>
                   <Field label="Titulaire"><Chips options={titulairesOptions} value={c.titulaire} onChange={v => updateCC(c.id, { ...c, titulaire: v as string })} /></Field>
-                  <InfoCard color="amber">L'argent sur un compte courant n'est pas rémunéré. Un CGP recommande de ne conserver que 1–2 mois de dépenses sur ce type de compte.</InfoCard>
                 </CardWrap>
                 </motion.div>
               ))}
@@ -876,10 +798,7 @@ export default function Bloc2() {
                         <Input type="number" value={l.taux} onChange={v => updateLivret(l.id, { ...l, taux: v })} placeholder="1.50" suffix="%" />
                       </Field>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Établissement"><Input value={l.etablissement} onChange={v => updateLivret(l.id, { ...l, etablissement: v })} placeholder="Caisse d'Épargne" /></Field>
-                      <Field label="Solde actuel"><Input value={l.solde} onChange={v => updateLivret(l.id, { ...l, solde: v })} placeholder="0" suffix="€" /></Field>
-                    </div>
+                    <Field label="Solde actuel"><Input value={l.solde} onChange={v => updateLivret(l.id, { ...l, solde: v })} placeholder="0" suffix="€" /></Field>
                     {isPelCel && (
                       <div className="grid grid-cols-2 gap-4">
                         <Field label="Date d'ouverture">
@@ -923,11 +842,8 @@ export default function Bloc2() {
                 const plafondPmeDispo = Math.max(0, 225000 - versements - peaPmeVers)
                 return (
                   <motion.div key={p.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
-                  <CardWrap title={p.etablissement || 'PEA'} subtitle={valeur > 0 ? `${fmt(valeur)} €` : undefined} onRemove={() => removePea(p.id)}>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Titulaire"><Chips options={titulairesP1P2} value={p.titulaire} onChange={v => updatePea(p.id, { ...p, titulaire: v as string })} /></Field>
-                      <Field label="Établissement"><Input value={p.etablissement} onChange={v => updatePea(p.id, { ...p, etablissement: v })} placeholder="Bourse Direct" /></Field>
-                    </div>
+                  <CardWrap title="PEA" subtitle={valeur > 0 ? `${fmt(valeur)} €` : undefined} onRemove={() => removePea(p.id)}>
+                    <Field label="Titulaire"><Chips options={titulairesP1P2} value={p.titulaire} onChange={v => updatePea(p.id, { ...p, titulaire: v as string })} /></Field>
                     <Field label="Date d'ouverture">
                       <div className="space-y-1.5">
                         <Input type="date" value={p.dateOuverture} onChange={v => updatePea(p.id, { ...p, dateOuverture: v })} />
@@ -950,7 +866,6 @@ export default function Bloc2() {
                         <div className="bg-[#E6F1FB] rounded-xl p-3 text-center"><p className="text-[10px] text-gray-400 uppercase mb-1">Capacité restante</p><p className="text-[12px] font-semibold text-[#185FA5]">{fmt(150000 - plafondUtilise)} €</p></div>
                       </div>
                     )}
-                    <Field label="Composition"><Chips options={['ETF', 'Actions françaises', 'Actions européennes', 'Fonds actifs', 'Liquidités']} value={p.composition} onChange={v => updatePea(p.id, { ...p, composition: v as string[] })} multi small /></Field>
                     <Field label="Rendement annuel estimé (optionnel)"><Input type="number" value={p.rendement} onChange={v => updatePea(p.id, { ...p, rendement: v })} placeholder="—" suffix="%" /></Field>
                     <Field label="PEA-PME associé ?"><Toggle value={p.aPeaPme} onChange={v => updatePea(p.id, { ...p, aPeaPme: v })} /></Field>
                     {p.aPeaPme && (
@@ -960,7 +875,6 @@ export default function Bloc2() {
                           <Field label="Valeur"><Input value={p.peaPmeValeur} onChange={v => updatePea(p.id, { ...p, peaPmeValeur: v })} placeholder="0" suffix="€" /></Field>
                         </div>
                         <Field label="Versements PEA-PME"><Input value={p.peaPmeVersements} onChange={v => updatePea(p.id, { ...p, peaPmeVersements: v })} placeholder="0" suffix="€" /></Field>
-                        <InfoCard color="blue">Plafond PEA-PME disponible : <strong>{fmt(plafondPmeDispo)} €</strong> (225 000 € − versements PEA − versements PEA-PME)</InfoCard>
                       </div>
                     )}
                   </CardWrap>
@@ -984,11 +898,8 @@ export default function Bloc2() {
                 const pv = parseNum(c.valeur) - parseNum(c.prixRevient)
                 return (
                   <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
-                  <CardWrap title={c.etablissement || 'CTO'} subtitle={c.valeur ? `${fmt(parseNum(c.valeur))} €` : undefined} onRemove={() => removeCto(c.id)}>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Établissement"><Input value={c.etablissement} onChange={v => updateCto(c.id, { ...c, etablissement: v })} placeholder="Saxo Bank" /></Field>
-                      <Field label="Titulaire"><Chips options={titulairesOptions} value={c.titulaire} onChange={v => updateCto(c.id, { ...c, titulaire: v as string })} /></Field>
-                    </div>
+                  <CardWrap title="CTO" subtitle={c.valeur ? `${fmt(parseNum(c.valeur))} €` : undefined} onRemove={() => removeCto(c.id)}>
+                    <Field label="Titulaire"><Chips options={titulairesOptions} value={c.titulaire} onChange={v => updateCto(c.id, { ...c, titulaire: v as string })} /></Field>
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Valeur actuelle"><Input value={c.valeur} onChange={v => updateCto(c.id, { ...c, valeur: v })} placeholder="0" suffix="€" /></Field>
                       <Field label="Prix de revient total">
@@ -998,9 +909,7 @@ export default function Bloc2() {
                         </div>
                       </Field>
                     </div>
-                    <Field label="Composition"><Chips options={['Actions FR', 'Actions étrangères', 'Obligations', 'ETF', 'Fonds', 'Produits structurés', 'Liquidités']} value={c.composition} onChange={v => updateCto(c.id, { ...c, composition: v as string[] })} multi small /></Field>
                     <Field label="Rendement annuel estimé"><Input type="number" value={c.rendement} onChange={v => updateCto(c.id, { ...c, rendement: v })} placeholder="—" suffix="%" /></Field>
-                    <Field label="Secteur principal (optionnel)"><Chips options={['Technologie', 'Santé', 'Énergie', 'Finance', 'Immobilier', 'Diversifié', 'Autre']} value={c.secteur} onChange={v => updateCto(c.id, { ...c, secteur: v as string })} small /></Field>
                   </CardWrap>
                   </motion.div>
                 )
@@ -1021,15 +930,11 @@ export default function Bloc2() {
               {(state.avs || []).map(av => {
                 const ans = yearsAgo(av.dateOuverture)
                 const pv = parseNum(av.valeurRachat) - parseNum(av.versements)
-                const ucPct = 100 - av.fondsEurosPct
                 const valeur = parseNum(av.valeurRachat)
                 return (
                   <motion.div key={av.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
-                  <CardWrap title={av.nom || av.compagnie || 'Assurance-vie'} subtitle={av.valeurRachat ? `${fmt(valeur)} €` : undefined} onRemove={() => removeAv(av.id)}>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Nom du contrat"><Input value={av.nom} onChange={v => updateAv(av.id, { ...av, nom: v })} placeholder="Floriane 2" /></Field>
-                      <Field label="Compagnie"><Input value={av.compagnie} onChange={v => updateAv(av.id, { ...av, compagnie: v })} placeholder="Générali" /></Field>
-                    </div>
+                  <CardWrap title={av.compagnie || 'Assurance-vie'} subtitle={av.valeurRachat ? `${fmt(valeur)} €` : undefined} onRemove={() => removeAv(av.id)}>
+                    <Field label="Compagnie"><Input value={av.compagnie} onChange={v => updateAv(av.id, { ...av, compagnie: v })} placeholder="Générali" /></Field>
                     <Field label="Date d'ouverture">
                       <div className="space-y-1.5">
                         <Input type="date" value={av.dateOuverture} onChange={v => updateAv(av.id, { ...av, dateOuverture: v })} />
@@ -1048,12 +953,18 @@ export default function Bloc2() {
                         </div>
                       </Field>
                     </div>
-                    <Field label="Composition (fonds euros / UC)">
-                      <CompositionFonds pct={av.fondsEurosPct} onChange={v => updateAv(av.id, { ...av, fondsEurosPct: v })} valeur={valeur} ucDetail={av.ucDetail || []} onUcChange={v => updateAv(av.id, { ...av, ucDetail: v })} />
+                    <Field label="Répartition fonds euros / UC">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-[12px] text-gray-500">
+                          <span>Fonds euros : <strong>{av.fondsEurosPct}%</strong></span>
+                          <span>UC : <strong>{100 - av.fondsEurosPct}%</strong></span>
+                        </div>
+                        <input type="range" min={0} max={100} value={av.fondsEurosPct}
+                          onChange={e => updateAv(av.id, { ...av, fondsEurosPct: Number(e.target.value) })}
+                          className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#185FA5]" />
+                      </div>
                     </Field>
                     <Field label="Rendement annuel estimé"><Input type="number" value={av.rendement} onChange={v => updateAv(av.id, { ...av, rendement: v })} placeholder="—" suffix="%" /></Field>
-                    <Field label="Avances ou rachats partiels ?"><Toggle value={av.avancesRachats} onChange={v => updateAv(av.id, { ...av, avancesRachats: v })} /></Field>
-                    {av.avancesRachats && <Field label="Montant total racheté"><Input value={av.montantRachete} onChange={v => updateAv(av.id, { ...av, montantRachete: v })} placeholder="0" suffix="€" /></Field>}
                     <Field label="Titulaire"><Chips options={titulairesP1P2} value={av.titulaire} onChange={v => updateAv(av.id, { ...av, titulaire: v as string })} /></Field>
                   </CardWrap>
                   </motion.div>
@@ -1090,27 +1001,18 @@ export default function Bloc2() {
                         <Field label="Versements employeur cumulés"><Input value={p.versementsEmployeur} onChange={v => updatePer(p.id, { ...p, versementsEmployeur: v })} placeholder="0" suffix="€" /></Field>
                       )}
                     </div>
-                    <Field label="Composition (fonds euros / UC)">
-                      <CompositionFonds pct={p.fondsEurosPct} onChange={v => updatePer(p.id, { ...p, fondsEurosPct: v })} valeur={valeur} ucDetail={p.ucDetail} onUcChange={v => updatePer(p.id, { ...p, ucDetail: v })} />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Rendement annuel estimé"><Input type="number" value={p.rendement} onChange={v => updatePer(p.id, { ...p, rendement: v })} placeholder="—" suffix="%" /></Field>
-                      <Field label="Niveau de risque"><Chips options={['Faible', 'Modéré', 'Élevé', 'Très élevé']} value={p.risque} onChange={v => updatePer(p.id, { ...p, risque: v as string })} small /></Field>
-                    </div>
-                    <Field label="Mode de sortie envisagé"><Chips options={['Rente viagère', 'Capital', 'Mixte']} value={p.modeSortie} onChange={v => updatePer(p.id, { ...p, modeSortie: v as string })} /></Field>
-                    <Field label="Déjà débloqué partiellement ?"><Toggle value={p.deblocage} onChange={v => updatePer(p.id, { ...p, deblocage: v })} /></Field>
-                    {p.deblocage && (
-                      <div className="grid grid-cols-2 gap-4">
-                        <Field label="Montant débloqué"><Input value={p.montantDebloque} onChange={v => updatePer(p.id, { ...p, montantDebloque: v })} placeholder="0" suffix="€" /></Field>
-                        <Field label="Motif">
-                          <Select value={p.motifDeblocage} onChange={v => updatePer(p.id, { ...p, motifDeblocage: v })}>
-                            <option value="">Sélectionnez…</option>
-                            <option>Retraite</option><option>Achat RP</option><option>Invalidité</option>
-                            <option>Décès conjoint</option><option>Surendettement</option><option>Autre</option>
-                          </Select>
-                        </Field>
+                    <Field label="Répartition fonds euros / UC">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-[12px] text-gray-500">
+                          <span>Fonds euros : <strong>{p.fondsEurosPct}%</strong></span>
+                          <span>UC : <strong>{100 - p.fondsEurosPct}%</strong></span>
+                        </div>
+                        <input type="range" min={0} max={100} value={p.fondsEurosPct}
+                          onChange={e => updatePer(p.id, { ...p, fondsEurosPct: Number(e.target.value) })}
+                          className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#185FA5]" />
                       </div>
-                    )}
+                    </Field>
+                    <Field label="Rendement annuel estimé"><Input type="number" value={p.rendement} onChange={v => updatePer(p.id, { ...p, rendement: v })} placeholder="—" suffix="%" /></Field>
                     <Field label="Titulaire"><Chips options={titulairesP1P2} value={p.titulaire} onChange={v => updatePer(p.id, { ...p, titulaire: v as string })} /></Field>
                   </CardWrap>
                   </motion.div>
@@ -1166,11 +1068,6 @@ export default function Bloc2() {
                     </div>
                   </Field>
                 </div>
-                <Field label="Plateformes déclarées (formulaire 3916-bis) ?"><Toggle value={state.crypto.plateformeDeclaree} onChange={v => upd('crypto', { ...state.crypto, plateformeDeclaree: v })} /></Field>
-                {!state.crypto.plateformeDeclaree && (
-                  <InfoCard color="amber">Les comptes crypto détenus sur plateformes étrangères doivent être déclarés chaque année (formulaire 3916-bis). Une omission peut entraîner des pénalités.</InfoCard>
-                )}
-                <Field label="Composition (optionnel)"><Chips options={['Bitcoin', 'Ethereum', 'Stablecoins', 'Altcoins', 'Autres']} value={state.crypto.composition} onChange={v => upd('crypto', { ...state.crypto, composition: v as string[] })} multi small /></Field>
                 <Field label="Titulaire"><Chips options={titulairesOptions} value={state.crypto.titulaire} onChange={v => upd('crypto', { ...state.crypto, titulaire: v as string })} /></Field>
               </div>
             </div>
@@ -1374,20 +1271,13 @@ export default function Bloc2() {
 
         </FadeIn>
 
-        {/* ══ D — ORIGINE DU PATRIMOINE ════════════════════════════════════════ */}
-        <FadeIn delay={0.24}>
-        <SectionDivider label="D — Origine du patrimoine" />
-        <div className="mb-8">
-          <OrigineSliders origine={state.origine} onChange={o => upd('origine', o)} />
-        </div>
-        </FadeIn>
+        </>)}
 
         {/* ══ SYNTHÈSE ════════════════════════════════════════════════════════ */}
         {!state.showSynthese && (
           <button type="button" onClick={() => upd('showSynthese', true)}
-            className={`w-full py-4 rounded-2xl text-[14px] font-semibold transition-all ${origineTotal === 100 ? 'bg-[#185FA5] text-white hover:bg-[#0C447C] shadow-[0_4px_14px_rgba(24,95,165,0.25)]' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-            disabled={origineTotal !== 100}>
-            {origineTotal === 100 ? 'Voir la synthèse →' : `Complétez l'origine du patrimoine (${origineTotal}/100%)`}
+            className="w-full py-4 rounded-2xl text-[14px] font-semibold transition-all bg-[#185FA5] text-white hover:bg-[#0C447C] shadow-[0_4px_14px_rgba(24,95,165,0.25)]">
+            Voir la synthèse →
           </button>
         )}
 

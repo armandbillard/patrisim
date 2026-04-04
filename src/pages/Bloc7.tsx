@@ -104,6 +104,8 @@ interface Bloc7State {
   successionsAttendues: SuccessionAttendue[]
   showSynthese: boolean
   showModal: boolean
+  montantTotalDonations: string
+  estimationGlobaleSuccession: string
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -125,6 +127,7 @@ const defaultState = (): Bloc7State => ({
   pacteDutreil: { aPacte: false, societe: '', dateSignature: '', engagementCollectif: false, engagementIndividuel: false },
   aSuccessionAttendue: false, successionsAttendues: [],
   showSynthese: false, showModal: false,
+  montantTotalDonations: '', estimationGlobaleSuccession: '',
 })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -432,6 +435,9 @@ export default function Bloc7() {
 
   const montantSuccAttendues = state.successionsAttendues.reduce((a, s) => a + parseNum(s.montantMode === 'precis' ? s.montant : s.montantMax), 0)
 
+  const bloc0 = loadFromStorage<{ niveauDetail?: 'rapide' | 'complet' }>('patrisim_bloc0', {})
+  const isRapide = (bloc0.niveauDetail || 'complet') === 'rapide'
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#F8F8F6]">
@@ -492,8 +498,8 @@ export default function Bloc7() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[13px] font-semibold text-gray-800">Vos héritiers</p>
-            <button type="button" onClick={() => upd('heritiers', [...state.heritiers, defHeritier()])}
-              className="text-[12px] text-[#185FA5] hover:text-[#0C447C] font-medium">+ Ajouter un héritier</button>
+            {!isRapide && <button type="button" onClick={() => upd('heritiers', [...state.heritiers, defHeritier()])}
+              className="text-[12px] text-[#185FA5] hover:text-[#0C447C] font-medium">+ Ajouter un héritier</button>}
           </div>
           <div className="space-y-3">
             {state.heritiers.map(h => {
@@ -541,7 +547,7 @@ export default function Bloc7() {
                 </CardWrap>
               )
             })}
-            <AddBtn onClick={() => upd('heritiers', [...state.heritiers, defHeritier()])} label="Ajouter un héritier" />
+            {!isRapide && <AddBtn onClick={() => upd('heritiers', [...state.heritiers, defHeritier()])} label="Ajouter un héritier" />}
           </div>
         </div>
 
@@ -556,7 +562,7 @@ export default function Bloc7() {
                 <Chips options={['Olographe (manuscrit)', 'Authentique (notaire)', 'Mystique']}
                   value={state.testament.type} onChange={v => upd('testament', { ...state.testament, type: v as string })} small />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
+              {!isRapide && <div className="grid grid-cols-2 gap-4">
                 <Field label="Date de rédaction">
                   <div className="space-y-1">
                     <Input type="date" value={state.testament.dateRedaction} onChange={v => upd('testament', { ...state.testament, dateRedaction: v })} />
@@ -568,10 +574,10 @@ export default function Bloc7() {
                 <Field label="Notaire (optionnel)">
                   <Input value={state.testament.notaire} onChange={v => upd('testament', { ...state.testament, notaire: v })} placeholder="Maître Dupont" />
                 </Field>
-              </div>
-              <Field label="Dernière mise à jour (optionnel)">
+              </div>}
+              {!isRapide && <Field label="Dernière mise à jour (optionnel)">
                 <Input type="date" value={state.testament.derniereMAJ} onChange={v => upd('testament', { ...state.testament, derniereMAJ: v })} />
-              </Field>
+              </Field>}
             </div>
           ) : (
             patrimoineNet > 0 && (
@@ -622,6 +628,13 @@ export default function Bloc7() {
             <Toggle value={state.aDonations} onChange={v => upd('aDonations', v)} />
           </Field>
           {state.aDonations && (
+            isRapide ? (
+              <div className="mt-4">
+                <Field label="Montant total des donations effectuées">
+                  <Input value={state.montantTotalDonations} onChange={v => upd('montantTotalDonations', v)} placeholder="0" suffix="€" />
+                </Field>
+              </div>
+            ) : (
             <div className="mt-4 space-y-3">
               {state.donations.map(d => {
                 const benef = state.heritiers.find(h => h.prenom === d.beneficiaire)
@@ -677,11 +690,12 @@ export default function Bloc7() {
               })}
               <AddBtn onClick={() => upd('donations', [...state.donations, defDonation()])} label="Ajouter une donation" />
             </div>
+            )
           )}
         </div>
 
         {/* Démembrements */}
-        <div className="mb-5">
+        {!isRapide && <div className="mb-5">
           <Field label="Avez-vous réalisé des démembrements de propriété ?">
             <Toggle value={state.aDemembrements} onChange={v => upd('aDemembrements', v)} />
           </Field>
@@ -748,7 +762,7 @@ export default function Bloc7() {
               <AddBtn onClick={() => upd('demembrements', [...state.demembrements, defDemembrement()])} label="Ajouter un démembrement" />
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Assurances-vie */}
         {state.clausesAV.length > 0 && (
@@ -766,14 +780,14 @@ export default function Bloc7() {
                       <Field label="Nom du contrat"><Input value={av.nom} onChange={v => upd('clausesAV', state.clausesAV.map(x => x.id === av.id ? { ...x, nom: v } : x))} placeholder="Floriane 2" /></Field>
                       <Field label="Valeur de rachat"><Input value={av.valeur} onChange={v => upd('clausesAV', state.clausesAV.map(x => x.id === av.id ? { ...x, valeur: v } : x))} placeholder="0" suffix="€" /></Field>
                     </div>
-                    <Field label="Type de clause bénéficiaire">
+                    {!isRapide && <Field label="Type de clause bénéficiaire">
                       <Chips options={['Standard', 'Personnalisée', 'Démembrée']}
                         value={av.typeClause} onChange={v => upd('clausesAV', state.clausesAV.map(x => x.id === av.id ? { ...x, typeClause: v as string } : x))} />
-                    </Field>
-                    {av.typeClause === 'Standard' && (
+                    </Field>}
+                    {!isRapide && av.typeClause === 'Standard' && (
                       <InfoCard color="amber">Une clause bénéficiaire démembrée peut optimiser la transmission. Exemple : usufruit au conjoint, nue-propriété aux enfants. Ce point sera analysé dans votre bilan succession.</InfoCard>
                     )}
-                    {av.typeClause === 'Démembrée' && (
+                    {!isRapide && av.typeClause === 'Démembrée' && (
                       <div className="space-y-3 pl-2 border-l-2 border-[#E6F1FB]">
                         <Field label="Usufruitier">
                           <Select value={av.usufruitier} onChange={v => upd('clausesAV', state.clausesAV.map(x => x.id === av.id ? { ...x, usufruitier: v } : x))}>
@@ -869,6 +883,13 @@ export default function Bloc7() {
             <Toggle value={state.aSuccessionAttendue} onChange={v => upd('aSuccessionAttendue', v)} />
           </Field>
           {state.aSuccessionAttendue && (
+            isRapide ? (
+              <div className="mt-4">
+                <Field label="Estimation globale de la succession à recevoir">
+                  <Input value={state.estimationGlobaleSuccession} onChange={v => upd('estimationGlobaleSuccession', v)} placeholder="0" suffix="€" />
+                </Field>
+              </div>
+            ) : (
             <div className="mt-4 space-y-3">
               {state.successionsAttendues.map(s => {
                 const montantAffiche = s.montantMode === 'precis' ? parseNum(s.montant) : (parseNum(s.montantMin) + parseNum(s.montantMax)) / 2
@@ -949,6 +970,7 @@ export default function Bloc7() {
               })}
               <AddBtn onClick={() => upd('successionsAttendues', [...state.successionsAttendues, defSuccession()])} label="Ajouter une succession attendue" />
             </div>
+            )
           )}
         </div>
 

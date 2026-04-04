@@ -8,50 +8,11 @@ import FadeIn from '../components/FadeIn'
 
 interface Personne {
   prenom: string
-  nom: string
   dateNaissance: string
-  nationalite: string
-  autrePays: string
-}
-
-interface EnfantCharge {
-  prenom: string
-  age: string
-  gardeAlternee: boolean
-  handicape: boolean
-  autreUnion: boolean
-  autreUnionParent: 'P1' | 'P2' | ''
-}
-
-interface EnfantMajeur {
-  prenom: string
-  age: string
-  aCharge: boolean
-  gardeAlternee: boolean
-  etudes: boolean
-  handicape: boolean
-  autreUnion: boolean
-  autreUnionParent: 'P1' | 'P2' | ''
-}
-
-interface AutreCharge {
-  lien: string
-  autreDesc: string
-  prenom: string
-  coutMensuel: string
-}
-
-interface PetitEnfant {
-  prenom: string
-  age: string
-  parentEnfant: string
 }
 
 interface SituationPro {
   statut: string
-  secteur: string
-  typeContrat: string
-  anciennete: string
   caissesRetraite: string
   dateDepartRetraite: string
   formeJuridique: string
@@ -59,26 +20,17 @@ interface SituationPro {
 
 interface Foyer {
   statutMatrimonial: string
-  unionPrecedente: boolean
-  nbUnionsPrecedentes: string
   regimeMatrimonial: string
-  // Logement
   typeLogement: string
   logementAutreDetail: string
   enfantsCharge: number
-  enfants: EnfantCharge[]
   enfantsMajeurs: number
-  majeurs: EnfantMajeur[]
-  petitsEnfants: PetitEnfant[]
-  autresCharges: AutreCharge[]
 }
 
 interface Errors {
   p1Prenom?: string
-  p1Nom?: string
   p1Date?: string
   p2Prenom?: string
-  p2Nom?: string
   p2Date?: string
   statutMatrimonial?: string
   pro1Statut?: string
@@ -88,20 +40,17 @@ interface Errors {
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 const defaultPersonne: Personne = {
-  prenom: '', nom: '', dateNaissance: '', nationalite: 'Française', autrePays: '',
+  prenom: '', dateNaissance: '',
 }
 
 const defaultFoyer: Foyer = {
-  statutMatrimonial: '', unionPrecedente: false, nbUnionsPrecedentes: '',
-  regimeMatrimonial: '',
+  statutMatrimonial: '', regimeMatrimonial: '',
   typeLogement: '', logementAutreDetail: '',
-  enfantsCharge: 0, enfants: [], enfantsMajeurs: 0,
-  majeurs: [], petitsEnfants: [], autresCharges: [],
+  enfantsCharge: 0, enfantsMajeurs: 0,
 }
 
 const defaultSituationPro = (): SituationPro => ({
-  statut: '', secteur: '', typeContrat: '', anciennete: '',
-  caissesRetraite: '', dateDepartRetraite: '', formeJuridique: '',
+  statut: '', caissesRetraite: '', dateDepartRetraite: '', formeJuridique: '',
 })
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -223,43 +172,6 @@ function ChipSelector({ options, value, onChange, green = false }: {
   )
 }
 
-function Checkbox({ checked, onChange, label }: {
-  checked: boolean; onChange: (v: boolean) => void; label: string
-}) {
-  return (
-    <label className="flex items-center gap-2 cursor-pointer select-none">
-      <div onClick={() => onChange(!checked)}
-        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${
-          checked ? 'bg-[#185FA5] border-[#185FA5]' : 'border-gray-300 bg-white'
-        }`}
-      >
-        {checked && (
-          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-        )}
-      </div>
-      <span className="text-[13px] text-gray-600">{label}</span>
-    </label>
-  )
-}
-
-function ToggleYesNo({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <div className="flex gap-3">
-      {(['Non', 'Oui'] as const).map(opt => (
-        <button key={opt} type="button" onClick={() => onChange(opt === 'Oui')}
-          className={`px-5 py-2 rounded-lg text-[13px] border transition-all ${
-            (opt === 'Oui') === value
-              ? 'bg-[#185FA5] border-[#185FA5] text-white'
-              : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'
-          }`}
-        >{opt}</button>
-      ))}
-    </div>
-  )
-}
-
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
 function Toast({ message, onDone }: { message: string; onDone: () => void }) {
@@ -279,9 +191,9 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
 
 // ─── PersonneCard ─────────────────────────────────────────────────────────────
 
-function PersonneCard({ personne, onChange, isP2 = false, errors = {} }: {
+function PersonneCard({ personne, onChange, isP2 = false, isRapide = false, errors = {} }: {
   personne: Personne; onChange: (p: Personne) => void
-  isP2?: boolean; errors?: { prenom?: string; nom?: string; date?: string }
+  isP2?: boolean; isRapide?: boolean; errors?: { prenom?: string; date?: string }
 }) {
   const age = calculateAge(personne.dateNaissance)
   const displayName = personne.prenom.trim() || (isP2 ? 'Personne 2' : 'Personne 1')
@@ -294,120 +206,44 @@ function PersonneCard({ personne, onChange, isP2 = false, errors = {} }: {
       <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${badgeBg} ${badgeText} text-[11px] font-semibold mb-5`}>
         <div className={`w-1.5 h-1.5 rounded-full ${dot}`} />{displayName}
       </div>
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-2 gap-4">
         <Field label="Prénom" error={errors.prenom}>
           <Input value={personne.prenom} onChange={v => onChange({ ...personne, prenom: v })} placeholder="Marie" hasError={!!errors.prenom} />
         </Field>
-        <Field label="Nom" error={errors.nom}>
-          <Input value={personne.nom} onChange={v => onChange({ ...personne, nom: v })} placeholder="Dupont" hasError={!!errors.nom} />
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <Field label="Date de naissance" error={errors.date}>
-          <div className="relative">
-            <Input type="date" value={personne.dateNaissance} onChange={v => onChange({ ...personne, dateNaissance: v })} hasError={!!errors.date} />
-            {age !== null && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-[#185FA5] bg-[#E6F1FB] px-2 py-0.5 rounded-full pointer-events-none">
-                {age} ans
-              </span>
-            )}
-          </div>
-        </Field>
-        <Field label="Nationalité">
-          <Select value={personne.nationalite} onChange={v => onChange({ ...personne, nationalite: v, autrePays: '' })}>
-            <option>Française</option><option>Autre</option>
-          </Select>
-        </Field>
-      </div>
-      {personne.nationalite === 'Autre' && (
-        <Field label="Précisez le pays">
-          <Input value={personne.autrePays} onChange={v => onChange({ ...personne, autrePays: v })} placeholder="Belgique, Suisse…" />
-        </Field>
-      )}
-    </div>
-  )
-}
-
-// ─── EnfantChargeCard ─────────────────────────────────────────────────────────
-
-function EnfantChargeCard({ enfant, index, isCouple, p1Label, p2Label, onChange }: {
-  enfant: EnfantCharge; index: number; isCouple: boolean
-  p1Label: string; p2Label: string; onChange: (e: EnfantCharge) => void
-}) {
-  const label = enfant.prenom.trim() || `Enfant ${index + 1}`
-  const upd = <K extends keyof EnfantCharge>(k: K, v: EnfantCharge[K]) => onChange({ ...enfant, [k]: v })
-  return (
-    <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-      <div className="text-[12px] font-semibold text-[#185FA5] mb-3">{label}</div>
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <Field label="Prénom"><Input value={enfant.prenom} onChange={v => upd('prenom', v)} placeholder="Emma" /></Field>
-        <Field label="Âge"><Input type="number" value={enfant.age} onChange={v => upd('age', v)} placeholder="8" /></Field>
-      </div>
-      <div className="flex flex-wrap gap-4">
-        <Checkbox checked={enfant.gardeAlternee} onChange={v => upd('gardeAlternee', v)} label="Garde alternée" />
-        <Checkbox checked={enfant.handicape} onChange={v => upd('handicape', v)} label="Situation de handicap" />
-        {isCouple && <Checkbox checked={enfant.autreUnion} onChange={v => upd('autreUnion', v)} label="Issu(e) d'une autre union" />}
-      </div>
-      {isCouple && enfant.autreUnion && (
-        <div className="mt-3">
-          <Field label="Union de">
-            <ChipSelector
-              options={[p1Label, p2Label]}
-              value={enfant.autreUnionParent === 'P1' ? p1Label : enfant.autreUnionParent === 'P2' ? p2Label : ''}
-              onChange={v => upd('autreUnionParent', v === p1Label ? 'P1' : 'P2')}
+        {isRapide ? (
+          <Field label="Âge" error={errors.date}>
+            <Input
+              type="number"
+              value={age !== null ? String(age) : ''}
+              onChange={v => onChange({ ...personne, dateNaissance: v ? `${new Date().getFullYear() - Number(v)}-01-01` : '' })}
+              placeholder="45"
+              hasError={!!errors.date}
             />
           </Field>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── EnfantMajeurCard ─────────────────────────────────────────────────────────
-
-function EnfantMajeurCard({ enfant, index, isCouple, p1Label, p2Label, onChange }: {
-  enfant: EnfantMajeur; index: number; isCouple: boolean
-  p1Label: string; p2Label: string; onChange: (e: EnfantMajeur) => void
-}) {
-  const label = enfant.prenom.trim() || `Enfant ${index + 1}`
-  const upd = <K extends keyof EnfantMajeur>(k: K, v: EnfantMajeur[K]) => onChange({ ...enfant, [k]: v })
-  return (
-    <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-      <div className="text-[12px] font-semibold text-[#185FA5] mb-3">{label}</div>
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <Field label="Prénom"><Input value={enfant.prenom} onChange={v => upd('prenom', v)} placeholder="Lucas" /></Field>
-        <Field label="Âge"><Input type="number" value={enfant.age} onChange={v => upd('age', v)} placeholder="22" /></Field>
-      </div>
-      <div className="flex flex-wrap gap-4">
-        <Checkbox checked={enfant.aCharge} onChange={v => upd('aCharge', v)} label="À charge" />
-        <Checkbox checked={enfant.gardeAlternee} onChange={v => upd('gardeAlternee', v)} label="Garde alternée" />
-        <Checkbox checked={enfant.etudes} onChange={v => upd('etudes', v)} label="Études en cours" />
-        <Checkbox checked={enfant.handicape} onChange={v => upd('handicape', v)} label="Situation de handicap" />
-        {isCouple && <Checkbox checked={enfant.autreUnion} onChange={v => upd('autreUnion', v)} label="Issu(e) d'une autre union" />}
-      </div>
-      {isCouple && enfant.autreUnion && (
-        <div className="mt-3">
-          <Field label="Union de">
-            <ChipSelector
-              options={[p1Label, p2Label]}
-              value={enfant.autreUnionParent === 'P1' ? p1Label : enfant.autreUnionParent === 'P2' ? p2Label : ''}
-              onChange={v => upd('autreUnionParent', v === p1Label ? 'P1' : 'P2')}
-            />
+        ) : (
+          <Field label="Date de naissance" error={errors.date}>
+            <div className="relative">
+              <Input type="date" value={personne.dateNaissance} onChange={v => onChange({ ...personne, dateNaissance: v })} hasError={!!errors.date} />
+              {age !== null && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-[#185FA5] bg-[#E6F1FB] px-2 py-0.5 rounded-full pointer-events-none">
+                  {age} ans
+                </span>
+              )}
+            </div>
           </Field>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
 
 // ─── SituationProCard ─────────────────────────────────────────────────────────
 
-function SituationProCard({ pro, onChange, isP2 = false, personneLabel, errorStatut }: {
+function SituationProCard({ pro, onChange, isP2 = false, personneLabel, isRapide = false, errorStatut }: {
   pro: SituationPro; onChange: (p: SituationPro) => void
-  isP2?: boolean; personneLabel: string; errorStatut?: string
+  isP2?: boolean; personneLabel: string; isRapide?: boolean; errorStatut?: string
 }) {
   const upd = <K extends keyof SituationPro>(k: K, v: SituationPro[K]) => onChange({ ...pro, [k]: v })
-  const isSalarie = pro.statut === "Salarié(e) du privé" || pro.statut === "Fonctionnaire"
   const isRetraite = pro.statut === "Retraité(e)"
   const isTNS = pro.statut === "TNS (indépendant)" || pro.statut === "Chef(fe) d'entreprise"
   const badgeBg = isP2 ? 'bg-[#E1F5EE]' : 'bg-[#E6F1FB]'
@@ -430,28 +266,7 @@ function SituationProCard({ pro, onChange, isP2 = false, personneLabel, errorSta
             <option>Étudiant(e)</option>
           </Select>
         </Field>
-        <Field label="Secteur d'activité (optionnel)">
-          <Input value={pro.secteur} onChange={v => upd('secteur', v)} placeholder="Finance, Santé, Industrie…" />
-        </Field>
-        {isSalarie && (
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Type de contrat">
-              <Select value={pro.typeContrat} onChange={v => upd('typeContrat', v)}>
-                <option value="">Sélectionnez…</option>
-                <option>CDI</option><option>CDD</option>
-                <option>Titulaire</option><option>Contractuel</option><option>Autre</option>
-              </Select>
-            </Field>
-            <Field label="Ancienneté">
-              <Select value={pro.anciennete} onChange={v => upd('anciennete', v)}>
-                <option value="">Sélectionnez…</option>
-                <option>{"< 1 an"}</option><option>1–5 ans</option>
-                <option>5–15 ans</option><option>+ 15 ans</option>
-              </Select>
-            </Field>
-          </div>
-        )}
-        {isRetraite && (
+        {!isRapide && isRetraite && (
           <div className="grid grid-cols-2 gap-4">
             <Field label="Caisse(s) de retraite" tooltip="Ex : CNAV, AGIRC-ARRCO, CIPAV…">
               <Input value={pro.caissesRetraite} onChange={v => upd('caissesRetraite', v)} placeholder="CNAV, AGIRC-ARRCO…" />
@@ -461,7 +276,7 @@ function SituationProCard({ pro, onChange, isP2 = false, personneLabel, errorSta
             </Field>
           </div>
         )}
-        {isTNS && (
+        {!isRapide && isTNS && (
           <Field label="Forme juridique">
             <Select value={pro.formeJuridique} onChange={v => upd('formeJuridique', v)}>
               <option value="">Sélectionnez…</option>
@@ -480,6 +295,9 @@ function SituationProCard({ pro, onChange, isP2 = false, personneLabel, errorSta
 export default function Bloc1() {
   const navigate = useNavigate()
 
+  const niveauDetail = loadFromStorage<{ niveauDetail?: string }>('patrisim_bloc0', {}).niveauDetail || 'complet'
+  const isRapide = niveauDetail === 'rapide'
+
   const [mode, setMode] = useState<'seul' | 'couple'>(() =>
     loadFromStorage<{ v: 'seul' | 'couple' }>('patrisim_bloc1_mode', { v: 'seul' }).v ?? 'seul'
   )
@@ -495,7 +313,7 @@ export default function Bloc1() {
   const isCouple = mode === 'couple'
   const p1Label = p1.prenom.trim() || 'Personne 1'
   const p2Label = p2.prenom.trim() || 'Personne 2'
-  const showRegime = foyer.statutMatrimonial === 'Marié(e)' || foyer.statutMatrimonial === 'Pacsé(e)'
+  const showRegime = !isRapide && (foyer.statutMatrimonial === 'Marié(e)' || foyer.statutMatrimonial === 'Pacsé(e)')
 
   // Auto-save
   useEffect(() => {
@@ -508,38 +326,6 @@ export default function Bloc1() {
     const now = new Date()
     setSavedAt(now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }))
   }, [mode, p1, p2, foyer, pro1, pro2])
-
-  // Handlers
-  const handleEnfantsCharge = (n: number) => {
-    const enfants = Array(n).fill(null).map((_, i) =>
-      foyer.enfants[i] || { prenom: '', age: '', gardeAlternee: false, handicape: false, autreUnion: false, autreUnionParent: '' as '' }
-    )
-    setFoyer({ ...foyer, enfantsCharge: n, enfants })
-  }
-
-  const handleEnfantsMajeurs = (n: number) => {
-    const majeurs = Array(n).fill(null).map((_, i) =>
-      foyer.majeurs[i] || { prenom: '', age: '', aCharge: false, gardeAlternee: false, etudes: false, handicape: false, autreUnion: false, autreUnionParent: '' as '' }
-    )
-    setFoyer({ ...foyer, enfantsMajeurs: n, majeurs })
-  }
-
-  const updateEnfant = (i: number, u: EnfantCharge) => {
-    const e = [...foyer.enfants]; e[i] = u; setFoyer({ ...foyer, enfants: e })
-  }
-  const updateMajeur = (i: number, u: EnfantMajeur) => {
-    const m = [...foyer.majeurs]; m[i] = u; setFoyer({ ...foyer, majeurs: m })
-  }
-  const addPetitEnfant = () => setFoyer({ ...foyer, petitsEnfants: [...foyer.petitsEnfants, { prenom: '', age: '', parentEnfant: '' }] })
-  const updatePetitEnfant = (i: number, k: keyof PetitEnfant, v: string) => {
-    const a = [...foyer.petitsEnfants]; a[i] = { ...a[i], [k]: v }; setFoyer({ ...foyer, petitsEnfants: a })
-  }
-  const removePetitEnfant = (i: number) => setFoyer({ ...foyer, petitsEnfants: foyer.petitsEnfants.filter((_, j) => j !== i) })
-  const addAutreCharge = () => setFoyer({ ...foyer, autresCharges: [...foyer.autresCharges, { lien: '', autreDesc: '', prenom: '', coutMensuel: '' }] })
-  const updateAutreCharge = (i: number, k: keyof AutreCharge, v: string) => {
-    const a = [...foyer.autresCharges]; a[i] = { ...a[i], [k]: v }; setFoyer({ ...foyer, autresCharges: a })
-  }
-  const removeAutreCharge = (i: number) => setFoyer({ ...foyer, autresCharges: foyer.autresCharges.filter((_, j) => j !== i) })
 
   // Validation
   const validate = (): boolean => {
@@ -556,7 +342,6 @@ export default function Bloc1() {
 
   const handleSuivant = () => {
     if (!validate()) {
-      // Scroll vers la première erreur
       setTimeout(() => {
         const el = document.querySelector('[data-error="true"]')
         el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -632,14 +417,14 @@ export default function Bloc1() {
           <SectionTitle>Identité</SectionTitle>
           {isCouple ? (
             <div className="grid grid-cols-2 gap-4">
-              <PersonneCard personne={p1} onChange={p => { setP1(p); setErrors(e => ({ ...e, p1Prenom: undefined, p1Nom: undefined, p1Date: undefined })) }}
-                isP2={false} errors={{ prenom: errors.p1Prenom, nom: errors.p1Nom, date: errors.p1Date }} />
-              <PersonneCard personne={p2} onChange={p => { setP2(p); setErrors(e => ({ ...e, p2Prenom: undefined, p2Nom: undefined, p2Date: undefined })) }}
-                isP2={true} errors={{ prenom: errors.p2Prenom, nom: errors.p2Nom, date: errors.p2Date }} />
+              <PersonneCard personne={p1} onChange={p => { setP1(p); setErrors(e => ({ ...e, p1Prenom: undefined, p1Date: undefined })) }}
+                isP2={false} isRapide={isRapide} errors={{ prenom: errors.p1Prenom, date: errors.p1Date }} />
+              <PersonneCard personne={p2} onChange={p => { setP2(p); setErrors(e => ({ ...e, p2Prenom: undefined, p2Date: undefined })) }}
+                isP2={true} isRapide={isRapide} errors={{ prenom: errors.p2Prenom, date: errors.p2Date }} />
             </div>
           ) : (
-            <PersonneCard personne={p1} onChange={p => { setP1(p); setErrors(e => ({ ...e, p1Prenom: undefined, p1Nom: undefined, p1Date: undefined })) }}
-              isP2={false} errors={{ prenom: errors.p1Prenom, nom: errors.p1Nom, date: errors.p1Date }} />
+            <PersonneCard personne={p1} onChange={p => { setP1(p); setErrors(e => ({ ...e, p1Prenom: undefined, p1Date: undefined })) }}
+              isP2={false} isRapide={isRapide} errors={{ prenom: errors.p1Prenom, date: errors.p1Date }} />
           )}
         </div>
         </FadeIn>
@@ -659,24 +444,6 @@ export default function Bloc1() {
                 <option>En concubinage</option><option>Veuf(ve)</option>
               </Select>
             </Field>
-
-            <AnimatePresence>
-            {foyer.statutMatrimonial && foyer.statutMatrimonial !== 'Veuf(ve)' && (
-              <motion.div key="unions-section" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
-              <div className="space-y-3">
-                <Field label="Avez-vous déjà été marié(e) ou pacsé(e) précédemment ?">
-                  <ToggleYesNo value={foyer.unionPrecedente} onChange={v => setFoyer({ ...foyer, unionPrecedente: v, nbUnionsPrecedentes: '' })} />
-                </Field>
-                {foyer.unionPrecedente && (
-                  <Field label="Nombre d'unions précédentes">
-                    <ChipSelector options={['1', '2', '3+']} value={foyer.nbUnionsPrecedentes}
-                      onChange={v => setFoyer({ ...foyer, nbUnionsPrecedentes: String(v) })} />
-                  </Field>
-                )}
-              </div>
-              </motion.div>
-            )}
-            </AnimatePresence>
 
             <AnimatePresence>
             {showRegime && (
@@ -771,113 +538,16 @@ export default function Bloc1() {
             </div>
 
             {/* Enfants à charge */}
-            <div>
-              <Field label="Enfants à charge (moins de 18 ans)">
-                <ChipSelector options={[0,1,2,3,4,5,6]} value={foyer.enfantsCharge} onChange={v => handleEnfantsCharge(Number(v))} />
-              </Field>
-              {foyer.enfantsCharge > 0 && (
-                <div className="mt-4 space-y-3">
-                  {foyer.enfants.map((e, i) => (
-                    <EnfantChargeCard key={i} enfant={e} index={i} isCouple={isCouple} p1Label={p1Label} p2Label={p2Label} onChange={u => updateEnfant(i, u)} />
-                  ))}
-                </div>
-              )}
-            </div>
+            <Field label="Enfants à charge (moins de 18 ans)">
+              <ChipSelector options={[0,1,2,3,4,5,6]} value={foyer.enfantsCharge}
+                onChange={v => setFoyer({ ...foyer, enfantsCharge: Number(v) })} />
+            </Field>
 
             {/* Enfants majeurs */}
-            <div>
-              <Field label="Enfants majeurs (18 ans et plus)">
-                <ChipSelector options={[0,1,2,3,4,5,6]} value={foyer.enfantsMajeurs} onChange={v => handleEnfantsMajeurs(Number(v))} />
-              </Field>
-              {foyer.enfantsMajeurs > 0 && (
-                <div className="mt-4 space-y-3">
-                  {foyer.majeurs.map((m, i) => (
-                    <EnfantMajeurCard key={i} enfant={m} index={i} isCouple={isCouple} p1Label={p1Label} p2Label={p2Label} onChange={u => updateMajeur(i, u)} />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Petits-enfants */}
-            {foyer.majeurs.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">Petits-enfants</label>
-                  <button type="button" onClick={addPetitEnfant}
-                    className="text-[12px] text-[#185FA5] hover:text-[#0C447C] font-medium flex items-center gap-1 transition-colors">
-                    <span className="text-[16px] leading-none">+</span> Ajouter un petit-enfant
-                  </button>
-                </div>
-                {foyer.petitsEnfants.length === 0 && (
-                  <div className="text-[13px] text-gray-400 bg-gray-50 rounded-xl px-4 py-3">Aucun petit-enfant déclaré.</div>
-                )}
-                <div className="space-y-3">
-                  {foyer.petitsEnfants.map((pe, i) => (
-                    <div key={i} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-[12px] font-semibold text-[#185FA5]">{pe.prenom.trim() || `Petit-enfant ${i + 1}`}</span>
-                        <button type="button" onClick={() => removePetitEnfant(i)} className="text-[12px] text-red-400 hover:text-red-600 transition-colors">Supprimer</button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <Field label="Prénom"><Input value={pe.prenom} onChange={v => updatePetitEnfant(i, 'prenom', v)} placeholder="Léo" /></Field>
-                        <Field label="Âge"><Input type="number" value={pe.age} onChange={v => updatePetitEnfant(i, 'age', v)} placeholder="3" /></Field>
-                      </div>
-                      <Field label="Enfant parent" tooltip="De quel enfant majeur ce petit-enfant est-il issu ?">
-                        <Select value={pe.parentEnfant} onChange={v => updatePetitEnfant(i, 'parentEnfant', v)}>
-                          <option value="">Sélectionnez…</option>
-                          {foyer.majeurs.map((m, j) => (
-                            <option key={j} value={m.prenom || `Enfant ${j + 1}`}>{m.prenom.trim() || `Enfant ${j + 1}`}</option>
-                          ))}
-                        </Select>
-                      </Field>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Autres personnes à charge */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">Autres personnes à charge</label>
-                <button type="button" onClick={addAutreCharge}
-                  className="text-[12px] text-[#185FA5] hover:text-[#0C447C] font-medium flex items-center gap-1 transition-colors">
-                  <span className="text-[16px] leading-none">+</span> Ajouter une personne
-                </button>
-              </div>
-              {foyer.autresCharges.length === 0 && (
-                <div className="text-[13px] text-gray-400 bg-gray-50 rounded-xl px-4 py-3">Aucune autre personne à charge déclarée.</div>
-              )}
-              <div className="space-y-3">
-                {foyer.autresCharges.map((c, i) => (
-                  <div key={i} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-[12px] font-semibold text-[#185FA5]">{c.prenom.trim() || `Personne ${i + 1}`}</span>
-                      <button type="button" onClick={() => removeAutreCharge(i)} className="text-[12px] text-red-400 hover:text-red-600 transition-colors">Supprimer</button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <Field label="Lien de parenté">
-                        <Select value={c.lien} onChange={v => updateAutreCharge(i, 'lien', v)}>
-                          <option value="">Sélectionnez…</option>
-                          <option>Parent</option><option>Beau-parent</option><option>Grand-parent</option>
-                          <option>Beau-fils</option><option>Belle-fille</option>
-                          <option>Enfant d'une autre union</option><option>Autre</option>
-                        </Select>
-                      </Field>
-                      <Field label="Prénom"><Input value={c.prenom} onChange={v => updateAutreCharge(i, 'prenom', v)} placeholder="Geneviève" /></Field>
-                    </div>
-                    {c.lien === 'Autre' && (
-                      <div className="mb-3">
-                        <Field label="Précisez"><Input value={c.autreDesc} onChange={v => updateAutreCharge(i, 'autreDesc', v)} placeholder="Tuteur légal, ami…" /></Field>
-                      </div>
-                    )}
-                    <Field label="Coût mensuel estimé (€)" tooltip="Sera intégré automatiquement dans vos charges au Bloc 4.">
-                      <Input type="number" value={c.coutMensuel} onChange={v => updateAutreCharge(i, 'coutMensuel', v)} placeholder="500" />
-                    </Field>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <Field label="Enfants majeurs (18 ans et plus)">
+              <ChipSelector options={[0,1,2,3,4,5,6]} value={foyer.enfantsMajeurs}
+                onChange={v => setFoyer({ ...foyer, enfantsMajeurs: Number(v) })} />
+            </Field>
 
           </div>
         </div>
@@ -890,13 +560,13 @@ export default function Bloc1() {
           {isCouple ? (
             <div className="grid grid-cols-2 gap-4">
               <SituationProCard pro={pro1} onChange={p => { setPro1(p); setErrors(e => ({ ...e, pro1Statut: undefined })) }}
-                isP2={false} personneLabel={p1Label} errorStatut={errors.pro1Statut} />
+                isP2={false} personneLabel={p1Label} isRapide={isRapide} errorStatut={errors.pro1Statut} />
               <SituationProCard pro={pro2} onChange={p => { setPro2(p); setErrors(e => ({ ...e, pro2Statut: undefined })) }}
-                isP2={true} personneLabel={p2Label} errorStatut={errors.pro2Statut} />
+                isP2={true} personneLabel={p2Label} isRapide={isRapide} errorStatut={errors.pro2Statut} />
             </div>
           ) : (
             <SituationProCard pro={pro1} onChange={p => { setPro1(p); setErrors(e => ({ ...e, pro1Statut: undefined })) }}
-              isP2={false} personneLabel={p1Label} errorStatut={errors.pro1Statut} />
+              isP2={false} personneLabel={p1Label} isRapide={isRapide} errorStatut={errors.pro1Statut} />
           )}
         </div>
         </FadeIn>

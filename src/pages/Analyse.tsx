@@ -326,6 +326,64 @@ export default function Analyse() {
 
     const run = async () => {
       try {
+        // ── MODE DÉMO DÉVELOPPEUR ─────────────────────────────────────────
+        if (localStorage.getItem('patrisim_dev_demo') === 'true') {
+          const demoCalc: ReturnType<typeof computePreCalculations> = {
+            patrimoineBrut: 480000, patrimoineNet: 350000, totalDettes: 130000,
+            totalRev: 4800, totalCharges: 2100, capaciteEpargne: 2700,
+            tmi: 30, ir: 7200, pressionFiscale: 12000, tauxMoyen: 18, rfr: 40000,
+            ageDepart: 64, anneesAvantRetraite: 28, age1: 36,
+            pensionEstimee: 2100, revenusCibles: 3600, deficitMensuel: 1500, capitalNecessaire: 450000, capitalProjecte: 820000,
+            tauxEndettement: 28, totalMensualites: 1350,
+            plafondPer: 4800, economiePer: 1440,
+          }
+          const demoResult: AIResult = {
+            score_global: 72,
+            commentaire_global: 'Votre situation patrimoniale est globalement solide avec quelques axes d\'amélioration identifiés.',
+            phrase_bilan: 'Vous avez bien posé les bases, mais il reste des leviers importants à activer pour sécuriser votre retraite.',
+            points_forts: [
+              'Un patrimoine immobilier bien constitué qui progresse régulièrement.',
+              'Une capacité d\'épargne mensuelle confortable de 2 700 €.',
+              'Un profil investisseur cohérent avec vos objectifs à long terme.',
+            ],
+            points_attention: [
+              'Le déficit de retraite mensuel estimé à 1 500 € mérite une action rapide.',
+              'La pression fiscale de 30% laisse peu de marge sans optimisation active.',
+              'Le taux d\'endettement à 28% approche la limite recommandée.',
+            ],
+            opportunites: [
+              'Ouvrir un Plan d\'Épargne Retraite et économiser jusqu\'à 1 440 € d\'impôts par an.',
+              'Restructurer vos placements pour améliorer le rendement global de 1 à 1,5 point.',
+              'Anticiper la transmission de votre patrimoine immobilier pour réduire les droits futurs.',
+            ],
+            objectif_principal: 'Préparer une retraite sereine avec des revenus complémentaires suffisants.',
+            probabilite_succes: 68,
+            situation_actuelle: 'Vous disposez d\'un patrimoine net de 350 000 € avec des revenus mensuels de 4 800 €. Votre capacité d\'épargne est bonne mais l\'effort doit être orienté vers la retraite.',
+            gap_analyse: 'Il vous manque environ 450 000 € de capital pour couvrir votre déficit de retraite. Sans action, l\'écart se creusera avec le temps.',
+            plan_action: [
+              { etape: 1, action: 'Ouvrir un PER et y verser 400 € par mois', delai: 'Ce mois-ci', impact: 'Économie fiscale de 1 440 €/an et capital retraite progressif', priorite: 'haute' },
+              { etape: 2, action: 'Renégocier votre crédit immobilier pour réduire les mensualités', delai: '3 mois', impact: 'Libérer 200 à 300 € de capacité d\'épargne mensuelle', priorite: 'moyenne' },
+              { etape: 3, action: 'Diversifier vers des SCPI ou ETF pour compléter l\'immobilier', delai: '6 mois', impact: 'Améliorer le rendement global du patrimoine', priorite: 'moyenne' },
+            ],
+            recommandations: [
+              { titre: 'Ouvrir un Plan d\'Épargne Retraite', description: 'Vous pouvez déduire jusqu\'à 4 800 € de vos revenus imposables chaque année. À votre TMI de 30%, c\'est 1 440 € d\'économie fiscale directe.', urgence: 'immediate', gain_estime: 1440 },
+              { titre: 'Rééquilibrer votre épargne financière', description: 'Une partie de votre épargne peut être placée sur des supports plus dynamiques. Sur 28 ans, la différence de rendement peut représenter plusieurs dizaines de milliers d\'euros.', urgence: 'court_terme', gain_estime: 35000 },
+              { titre: 'Anticiper la transmission de votre patrimoine', description: 'Une donation de votre vivant permet d\'utiliser les abattements légaux et de réduire les droits de succession futurs. Ce point mérite d\'être abordé avec un notaire.', urgence: 'moyen_terme', gain_estime: 20000 },
+            ],
+            alertes: [
+              { niveau: 'attention', message: 'Votre déficit de retraite estimé est de 1 500 € par mois.', action: 'Commencez à épargner spécifiquement pour la retraite dès maintenant.' },
+              { niveau: 'info', message: 'Votre taux d\'endettement est proche de 30%, seuil de vigilance.', action: 'Évitez de nouveaux crédits avant remboursement partiel.' },
+            ],
+          }
+          clearInterval(ticker)
+          setPreCalc(demoCalc)
+          setResult(demoResult)
+          setProgress(100)
+          setTimeout(() => setPhase('result'), 600)
+          return
+        }
+        // ─────────────────────────────────────────────────────────────────
+
         const calc = computePreCalculations()
         setPreCalc(calc)
 

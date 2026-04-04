@@ -220,15 +220,15 @@ function PersonneBadge({ label, isP2 }: { label: string; isP2?: boolean }) {
 
 // ─── RetraiteCard ─────────────────────────────────────────────────────────────
 
-function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusMensuel, errorAge }: {
+function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusMensuel, errorAge, isRapide }: {
   retraite: RetraitePersonne; onChange: (r: RetraitePersonne) => void
-  label: string; isP2?: boolean; dateNaissance?: string; revenusMensuel: number; errorAge?: string
+  label: string; isP2?: boolean; dateNaissance?: string; revenusMensuel: number; errorAge?: string; isRapide?: boolean
 }) {
   const upd = <K extends keyof RetraitePersonne>(k: K, v: RetraitePersonne[K]) => onChange({ ...retraite, [k]: v })
   const age = dateNaissance ? ageActuel(dateNaissance) : null
   const annesAvantRetraite = age !== null ? Math.max(0, retraite.ageDepartSouhaite - age) : null
   const anneeRetraite = annesAvantRetraite !== null ? new Date().getFullYear() + annesAvantRetraite : null
-  const dureeEstimee = age !== null ? Math.max(0, retraite.ageDepartSouhaite - age) : null
+  const cotisationRestante = age !== null ? Math.max(0, retraite.ageDepartSouhaite - age) : null
 
   const pensionBrute = parseNum(retraite.pensionBase) + (retraite.aComplementaire ? parseNum(retraite.pensionComplementaire) : 0)
   const pensionNette = Math.round(pensionBrute * 0.83)
@@ -256,18 +256,23 @@ function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusM
           {annesAvantRetraite !== null && (
             <div className="flex gap-3 mt-1">
               <span className="text-[12px] text-gray-500">Dans <strong className="text-gray-700">{annesAvantRetraite} ans</strong></span>
-              {dureeEstimee !== null && <span className="text-[12px] text-gray-500">· Cotisation restante : <strong className="text-gray-700">~{dureeEstimee} ans</strong></span>}
+              {/* Horizon de cotisation restante — complet uniquement */}
+              {!isRapide && cotisationRestante !== null && (
+                <span className="text-[12px] text-gray-500">· Cotisation restante : <strong className="text-gray-700">~{cotisationRestante} ans</strong></span>
+              )}
             </div>
           )}
           {errorAge && <p className="text-[11px] text-red-500">{errorAge}</p>}
         </div>
       </Field>
 
-      {/* Régimes */}
-      <Field label="Régime(s) de retraite">
-        <Chips options={['Régime général (CNAV)', 'AGIRC-ARRCO', 'MSA (agricole)', 'SSI (ex-RSI)', 'CNRACL', 'SRE (fonctionnaires État)', 'CIPAV', 'Autre régime spécial']}
-          value={retraite.regimes} onChange={v => upd('regimes', v as string[])} multi small />
-      </Field>
+      {/* Régimes de retraite — complet uniquement */}
+      {!isRapide && (
+        <Field label="Régime(s) de retraite">
+          <Chips options={['Régime général (CNAV)', 'AGIRC-ARRCO', 'MSA (agricole)', 'SSI (ex-RSI)', 'CNRACL', 'SRE (fonctionnaires État)', 'CIPAV', 'Autre régime spécial']}
+            value={retraite.regimes} onChange={v => upd('regimes', v as string[])} multi small />
+        </Field>
+      )}
 
       {/* Pension estimée */}
       <Field label="Connaissez-vous votre pension estimée ?">
@@ -297,12 +302,12 @@ function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusM
       ) : (
         <InfoCard color="amber">
           <p className="font-semibold mb-1">Estimation automatique</p>
-          <p className="italic text-gray-600">Pension estimée approximative : ~{fmt(pensionAuto)} €/mois</p>
-          <p className="text-[10px] mt-1">⚠ Estimation très approximative (50% revenus actuels). Consultez info-retraite.fr pour une simulation personnalisée.</p>
+          <p>Pension estimée : ~<strong>{fmt(pensionAuto)} €/mois</strong> (50% revenus actuels)</p>
+          {!isRapide && <p className="text-[11px] mt-1 opacity-70">Consultez info-retraite.fr pour une simulation personnalisée.</p>}
         </InfoCard>
       )}
 
-      {/* Objectifs à la retraite */}
+      {/* Revenus cibles */}
       <Field label="Revenus mensuels nets cibles à la retraite">
         <div className="space-y-2">
           <div className="flex justify-between mb-1">
@@ -316,26 +321,30 @@ function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusM
         </div>
       </Field>
 
-      {/* Gap */}
+      {/* Déficit & capital nécessaire */}
       {retraite.revenusCibles > 0 && (
         <div className={`rounded-xl p-4 ${gap <= 0 ? 'bg-[#E1F5EE]' : gap <= 500 ? 'bg-amber-50' : 'bg-red-50'}`}>
           {gap <= 0 ? (
-            <p className={`text-[13px] font-semibold text-[#085041]`}>✓ Votre pension couvre vos besoins</p>
+            <p className="text-[13px] font-semibold text-[#085041]">✓ Votre pension couvre vos besoins</p>
           ) : gap <= 500 ? (
             <p className="text-[13px] font-semibold text-amber-700">Déficit mensuel à couvrir : {fmt(gap)} €/mois</p>
           ) : (
             <div>
-              <p className="text-[13px] font-semibold text-red-700 mb-1">Déficit mensuel important : {fmt(gap)} €/mois</p>
+              <p className="text-[13px] font-semibold text-red-700 mb-1">Déficit mensuel : {fmt(gap)} €/mois</p>
               <p className="text-[12px] text-red-600">Capital nécessaire estimé : <strong>{fmt(capitalNecessaire)} €</strong> <span className="text-[10px]">(rendement 4% · durée 25 ans)</span></p>
             </div>
           )}
         </div>
       )}
 
-      <Field label="Patrimoine cible à la retraite (optionnel)" tooltip="Capital total que vous souhaitez avoir constitué à votre départ en retraite">
-        <Input value={retraite.patrimoineCouvrir} onChange={v => upd('patrimoineCouvrir', v)} placeholder="500 000" suffix="€" />
-      </Field>
+      {/* Patrimoine cible — complet uniquement */}
+      {!isRapide && (
+        <Field label="Patrimoine cible à la retraite (optionnel)" tooltip="Capital total que vous souhaitez avoir constitué à votre départ en retraite">
+          <Input value={retraite.patrimoineCouvrir} onChange={v => upd('patrimoineCouvrir', v)} placeholder="500 000" suffix="€" />
+        </Field>
+      )}
 
+      {/* Transmission */}
       <Field label="Souhaitez-vous transmettre un capital à vos héritiers ?">
         <Toggle value={retraite.aTransmission} onChange={v => upd('aTransmission', v)} />
       </Field>
@@ -426,7 +435,7 @@ function ProjetCard({ projet, onChange, onRemove }: {
           </Field>
 
           <Field label="Financement envisagé">
-            <Chips options={['Épargne existante', 'Effort d\'épargne futur', 'Crédit', 'Cession d\'un actif', 'Héritage attendu', 'Mixte']}
+            <Chips options={["Épargne existante", "Effort d'épargne futur", 'Crédit', "Cession d'un actif", 'Héritage attendu', 'Mixte']}
               value={projet.financement} onChange={v => upd('financement', v as string[])} multi small />
           </Field>
 
@@ -445,7 +454,10 @@ function ProjetCard({ projet, onChange, onRemove }: {
 export default function Bloc5() {
   const navigate = useNavigate()
 
-  // Données Blocs précédents
+  const bloc0 = loadFromStorage<{ niveauDetail?: 'rapide' | 'complet' }>('patrisim_bloc0', {})
+  const niveauDetail = bloc0.niveauDetail || 'complet'
+  const isRapide = niveauDetail === 'rapide'
+
   const p1Data = loadFromStorage<{ prenom?: string; dateNaissance?: string }>('patrisim_bloc1_p1', {})
   const p2Data = loadFromStorage<{ prenom?: string; dateNaissance?: string }>('patrisim_bloc1_p2', {})
   const p1Label = p1Data.prenom?.trim() || 'Personne 1'
@@ -456,19 +468,20 @@ export default function Bloc5() {
   const bloc4 = loadFromStorage<{
     p1Pro?: { salaire?: string; remunNette?: string }
     p2Pro?: { salaire?: string; remunNette?: string }
+    depenses?: { id: string; montant: string }[]
+    aPension?: boolean
+    pensionMontant?: string
   }>('patrisim_bloc4', {})
   const revenuP1Mensuel = parseNum(bloc4.p1Pro?.salaire || '0') || parseNum(bloc4.p1Pro?.remunNette || '0') / 12
   const revenuP2Mensuel = isCouple ? (parseNum(bloc4.p2Pro?.salaire || '0') || parseNum(bloc4.p2Pro?.remunNette || '0') / 12) : 0
-
-  const bloc4Charges = loadFromStorage<{ mensualitesCredits?: string; assurances?: string; abonnements?: string }>('patrisim_bloc4', {})
-  const capaciteBloc4 = loadFromStorage<{ capaciteEpargne?: number }>('patrisim_bloc4_calc', {}).capaciteEpargne
 
   const [state, setState] = useState<Bloc5State>(() => {
     const s = loadFromStorage('patrisim_bloc5', defaultState())
     // Pré-remplir capacité depuis Bloc 4
     if (!s.capaciteEpargne) {
       const revTotaux = revenuP1Mensuel + revenuP2Mensuel
-      const charges = parseNum(bloc4Charges.mensualitesCredits || '0') + parseNum(bloc4Charges.assurances || '0') + parseNum(bloc4Charges.abonnements || '0')
+      const charges = (bloc4.depenses || []).reduce((a, d) => a + parseNum(d.montant), 0)
+        + (bloc4.aPension ? parseNum(bloc4.pensionMontant || '0') : 0)
       const cap = Math.max(0, revTotaux - charges)
       if (cap > 0) s.capaciteEpargne = String(Math.round(cap))
     }
@@ -483,7 +496,7 @@ export default function Bloc5() {
   })
 
   const [savedAt, setSavedAt] = useState('')
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [errors] = useState<Record<string, string>>({})
   const [toast, setToast] = useState(false)
   const upd = useCallback(<K extends keyof Bloc5State>(k: K, v: Bloc5State[K]) => setState(s => ({ ...s, [k]: v })), [])
 
@@ -508,12 +521,9 @@ export default function Bloc5() {
 
   const capacite = parseNum(state.capaciteEpargne)
   const totalEpargne = capacite + state.effortSupp
-
-  // Capital projeté à la retraite
   const annees = annesAvantP1 ?? 20
   const capitalProjecte = capitalFuteur(totalEpargne, 4, annees)
 
-  // Budget projets
   const budgetCT = state.projets.filter(p => p.horizon === 'Court terme (0–3 ans)').reduce((a, p) => a + parseNum(p.budgetMode === 'precis' ? p.montant : p.montantMax), 0)
   const budgetMT = state.projets.filter(p => p.horizon === 'Moyen terme (3–8 ans)').reduce((a, p) => a + parseNum(p.budgetMode === 'precis' ? p.montant : p.montantMax), 0)
   const budgetLT = state.projets.filter(p => p.horizon === 'Long terme (8 ans+)').reduce((a, p) => a + parseNum(p.budgetMode === 'precis' ? p.montant : p.montantMax), 0)
@@ -521,8 +531,9 @@ export default function Bloc5() {
 
   const repartTotal = state.repartition.precaution + state.repartition.projetsCT + state.repartition.retraite + state.repartition.transmission
 
-  // Projection chart data
+  // Projection chart data (complet uniquement)
   const chartData = (() => {
+    if (isRapide) return []
     const data = []
     const today = new Date().getFullYear()
     const retraiteAn = today + (annesAvantP1 ?? 20)
@@ -545,9 +556,7 @@ export default function Bloc5() {
     return data
   })()
 
-  // ── Validation ─────────────────────────────────────────────────────────────
   const handleSuivant = () => {
-    setErrors({})
     setToast(true)
     setTimeout(() => navigate(getNextBloc(5)), 1200)
   }
@@ -574,7 +583,7 @@ export default function Bloc5() {
             {savedAt && <span className="ml-auto text-[11px] text-gray-300 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />Brouillon enregistré · {savedAt}</span>}
           </div>
           <h1 className="text-[26px] font-semibold text-gray-900 tracking-tight">Projets & retraite</h1>
-          <p className="text-[14px] text-gray-400 mt-1.5 max-w-xl">Définissez vos objectifs de retraite et vos projets à financer. Ces informations guideront l'ensemble des recommandations de votre bilan.</p>
+          <p className="text-[14px] text-gray-400 mt-1.5 max-w-xl">Définissez vos objectifs de retraite et vos projets à financer.</p>
         </div>
 
         {/* ══ A — RETRAITE ══════════════════════════════════════════════════ */}
@@ -584,72 +593,73 @@ export default function Bloc5() {
           <div className="grid grid-cols-2 gap-4 mb-8">
             <RetraiteCard retraite={state.retraiteP1} onChange={r => upd('retraiteP1', r)}
               label={p1Label} isP2={false} dateNaissance={p1Data.dateNaissance}
-              revenusMensuel={revenuP1Mensuel} errorAge={errors.revenusCiblesP1} />
+              revenusMensuel={revenuP1Mensuel} errorAge={errors.revenusCiblesP1} isRapide={isRapide} />
             <RetraiteCard retraite={state.retraiteP2} onChange={r => upd('retraiteP2', r)}
               label={p2Label} isP2 dateNaissance={p2Data.dateNaissance}
-              revenusMensuel={revenuP2Mensuel} errorAge={errors.revenusCiblesP2} />
+              revenusMensuel={revenuP2Mensuel} errorAge={errors.revenusCiblesP2} isRapide={isRapide} />
           </div>
         ) : (
           <div className="mb-8">
             <RetraiteCard retraite={state.retraiteP1} onChange={r => upd('retraiteP1', r)}
               label={p1Label} isP2={false} dateNaissance={p1Data.dateNaissance}
-              revenusMensuel={revenuP1Mensuel} errorAge={errors.revenusCiblesP1} />
+              revenusMensuel={revenuP1Mensuel} errorAge={errors.revenusCiblesP1} isRapide={isRapide} />
           </div>
         )}
-
         </FadeIn>
 
-        {/* ══ B — PROJETS ══════════════════════════════════════════════════ */}
-        <FadeIn delay={0.08}>
-        <SectionTitle>B — Projets à financer</SectionTitle>
-        <div className="mb-8">
-          <Field label="Avez-vous des projets à financer ?">
-            <Toggle value={state.aProjects} onChange={v => upd('aProjects', v)} />
-          </Field>
+        {/* ══ B — PROJETS (complet uniquement) ════════════════════════════ */}
+        {!isRapide && (
+          <FadeIn delay={0.08}>
+          <SectionTitle>B — Projets à financer</SectionTitle>
+          <div className="mb-8">
+            <Field label="Avez-vous des projets à financer ?">
+              <Toggle value={state.aProjects} onChange={v => upd('aProjects', v)} />
+            </Field>
 
-          {state.aProjects && (
-            <div className="mt-4 space-y-3">
-              {state.projets.map(p => (
-                <ProjetCard key={p.id} projet={p}
-                  onChange={np => upd('projets', state.projets.map(x => x.id === p.id ? np : x))}
-                  onRemove={() => upd('projets', state.projets.filter(x => x.id !== p.id))} />
-              ))}
-              <button type="button"
-                onClick={() => upd('projets', [...state.projets, defaultProjet()])}
-                className="w-full py-3 rounded-xl border-2 border-dashed border-gray-200 text-[13px] text-gray-400 hover:border-[#185FA5] hover:text-[#185FA5] transition-colors font-medium">
-                + Ajouter un projet
-              </button>
+            {state.aProjects && (
+              <div className="mt-4 space-y-3">
+                <AnimatePresence>
+                {state.projets.map(p => (
+                  <ProjetCard key={p.id} projet={p}
+                    onChange={np => upd('projets', state.projets.map(x => x.id === p.id ? np : x))}
+                    onRemove={() => upd('projets', state.projets.filter(x => x.id !== p.id))} />
+                ))}
+                </AnimatePresence>
+                <button type="button"
+                  onClick={() => upd('projets', [...state.projets, defaultProjet()])}
+                  className="w-full py-3 rounded-xl border-2 border-dashed border-gray-200 text-[13px] text-gray-400 hover:border-[#185FA5] hover:text-[#185FA5] transition-colors font-medium">
+                  + Ajouter un projet
+                </button>
 
-              {budgetTotal > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-2">
-                  <p className="text-[12px] font-semibold text-gray-700">Budget total projets : <strong className="text-[#185FA5]">{fmt(budgetTotal)} €</strong></p>
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    {[['Court terme', budgetCT], ['Moyen terme', budgetMT], ['Long terme', budgetLT]].map(([l, v]) => (
-                      <div key={l as string} className="bg-gray-50 rounded-lg p-2">
-                        <p className="text-[10px] text-gray-400">{l as string}</p>
-                        <p className="text-[13px] font-semibold text-gray-700">{fmt(v as number)} €</p>
-                      </div>
-                    ))}
+                {budgetTotal > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-2">
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      {[['Court terme', budgetCT], ['Moyen terme', budgetMT], ['Long terme', budgetLT]].map(([l, v]) => (
+                        <div key={l as string} className="bg-gray-50 rounded-lg p-2">
+                          <p className="text-[10px] text-gray-400">{l as string}</p>
+                          <p className="text-[13px] font-semibold text-gray-700">{fmt(v as number)} €</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className={`rounded-lg px-3 py-2 text-[12px] font-medium ${
+                      capacite * 12 * 3 >= budgetTotal ? 'bg-[#E1F5EE] text-[#085041]'
+                      : capacite * 12 * 5 >= budgetTotal ? 'bg-amber-50 text-amber-700'
+                      : 'bg-red-50 text-red-700'
+                    }`}>
+                      {capacite * 12 * 3 >= budgetTotal ? '✓ Finançables avec votre épargne actuelle'
+                        : capacite * 12 * 5 >= budgetTotal ? "Effort d'épargne supplémentaire nécessaire"
+                        : 'Besoin de financement externe probable'}
+                    </div>
                   </div>
-                  <div className={`rounded-lg px-3 py-2 text-[12px] font-medium ${
-                    capacite * 12 * 3 >= budgetTotal ? 'bg-[#E1F5EE] text-[#085041]'
-                    : capacite * 12 * 5 >= budgetTotal ? 'bg-amber-50 text-amber-700'
-                    : 'bg-red-50 text-red-700'
-                  }`}>
-                    {capacite * 12 * 3 >= budgetTotal ? '✓ Finançables avec votre épargne actuelle'
-                    : capacite * 12 * 5 >= budgetTotal ? '⚠ Effort d\'épargne supplémentaire nécessaire'
-                    : '⚠ Besoin de financement externe probable'}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        </FadeIn>
+                )}
+              </div>
+            )}
+          </div>
+          </FadeIn>
+        )}
 
         {/* ══ C — ÉPARGNE & EFFORT FUTUR ═══════════════════════════════════ */}
-        <FadeIn delay={0.16}>
+        <FadeIn delay={isRapide ? 0.08 : 0.16}>
         <SectionTitle>C — Épargne & effort futur</SectionTitle>
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5 mb-8">
 
@@ -660,47 +670,49 @@ export default function Bloc5() {
             </div>
           </Field>
 
-          {/* Répartition */}
-          <Field label="Répartition de l'épargne" tooltip="La somme des 4 curseurs doit totaliser 100%">
-            <div className="space-y-4">
-              {[
-                { key: 'precaution' as const, label: 'Épargne de précaution (liquidités)', tooltip: `Coussin recommandé : 4–6 mois de charges, soit ${fmt(parseNum(state.capaciteEpargne) * 4)} – ${fmt(parseNum(state.capaciteEpargne) * 6)} € pour vous` },
-                { key: 'projetsCT' as const, label: 'Financement de projets CT' },
-                { key: 'retraite' as const, label: 'Préparation retraite' },
-                { key: 'transmission' as const, label: 'Transmission / succession' },
-              ].map(({ key, label, tooltip }) => (
-                <div key={key}>
-                  <div className="flex justify-between mb-1">
-                    <div className="flex items-center gap-1">
-                      <span className="text-[12px] text-gray-600">{label}</span>
-                      {tooltip && (
-                        <div className="group relative">
-                          <span className="w-3.5 h-3.5 rounded-full border border-gray-200 text-gray-400 text-[9px] flex items-center justify-center cursor-help">?</span>
-                          <div className="absolute bottom-5 left-0 bg-gray-900 text-white text-[10px] px-2 py-1.5 rounded-lg w-52 hidden group-hover:block z-20">{tooltip}</div>
-                        </div>
-                      )}
+          {/* Répartition de l'épargne — complet uniquement */}
+          {!isRapide && (
+            <Field label="Répartition de l'épargne" tooltip="La somme des 4 curseurs doit totaliser 100%">
+              <div className="space-y-4">
+                {[
+                  { key: 'precaution' as const, label: 'Épargne de précaution (liquidités)', tooltip: `Coussin recommandé : 4–6 mois de charges` },
+                  { key: 'projetsCT' as const, label: 'Financement de projets CT' },
+                  { key: 'retraite' as const, label: 'Préparation retraite' },
+                  { key: 'transmission' as const, label: 'Transmission / succession' },
+                ].map(({ key, label, tooltip }) => (
+                  <div key={key}>
+                    <div className="flex justify-between mb-1">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[12px] text-gray-600">{label}</span>
+                        {tooltip && (
+                          <div className="group relative">
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-200 text-gray-400 text-[9px] flex items-center justify-center cursor-help">?</span>
+                            <div className="absolute bottom-5 left-0 bg-gray-900 text-white text-[10px] px-2 py-1.5 rounded-lg w-52 hidden group-hover:block z-20">{tooltip}</div>
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[12px] font-semibold text-[#185FA5]">{state.repartition[key]}%</span>
                     </div>
-                    <span className="text-[12px] font-semibold text-[#185FA5]">{state.repartition[key]}%</span>
+                    <input type="range" min={0} max={100} value={state.repartition[key]}
+                      onChange={e => upd('repartition', { ...state.repartition, [key]: Number(e.target.value) })}
+                      className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#185FA5]" />
                   </div>
-                  <input type="range" min={0} max={100} value={state.repartition[key]}
-                    onChange={e => upd('repartition', { ...state.repartition, [key]: Number(e.target.value) })}
-                    className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#185FA5]" />
-                </div>
-              ))}
-              <div className="mt-2">
-                <div className="flex justify-between text-[12px] mb-1">
-                  <span className="text-gray-500">Total</span>
-                  <span className={`font-bold ${repartTotal === 100 ? 'text-[#0F6E56]' : repartTotal > 100 ? 'text-red-600' : 'text-amber-600'}`}>
-                    {repartTotal}% {repartTotal !== 100 && `— ${repartTotal > 100 ? 'il faut retirer' : 'il manque'} ${Math.abs(100 - repartTotal)}%`}
-                  </span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${repartTotal === 100 ? 'bg-[#0F6E56]' : repartTotal > 100 ? 'bg-red-500' : 'bg-[#185FA5]'}`}
-                    style={{ width: `${Math.min(repartTotal, 100)}%` }} />
+                ))}
+                <div className="mt-2">
+                  <div className="flex justify-between text-[12px] mb-1">
+                    <span className="text-gray-500">Total</span>
+                    <span className={`font-bold ${repartTotal === 100 ? 'text-[#0F6E56]' : repartTotal > 100 ? 'text-red-600' : 'text-amber-600'}`}>
+                      {repartTotal}% {repartTotal !== 100 && `— ${repartTotal > 100 ? 'il faut retirer' : 'il manque'} ${Math.abs(100 - repartTotal)}%`}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${repartTotal === 100 ? 'bg-[#0F6E56]' : repartTotal > 100 ? 'bg-red-500' : 'bg-[#185FA5]'}`}
+                      style={{ width: `${Math.min(repartTotal, 100)}%` }} />
+                  </div>
                 </div>
               </div>
-            </div>
-          </Field>
+            </Field>
+          )}
 
           {/* Effort supplémentaire */}
           <Field label="Effort d'épargne supplémentaire envisageable">
@@ -715,16 +727,19 @@ export default function Bloc5() {
               <div className="flex justify-between text-[10px] text-gray-400"><span>0 €</span><span>3 000 €/mois</span></div>
               {state.effortSupp > 0 && (
                 <InfoCard color="blue">
-                  Sur 15 ans à 4% de rendement moyen : capital supplémentaire de <strong>{fmt(capitalFuteur(state.effortSupp, 4, 15))} €</strong>
+                  Sur 15 ans à 4% de rendement : capital supplémentaire de <strong>{fmt(capitalFuteur(state.effortSupp, 4, 15))} €</strong>
                 </InfoCard>
               )}
             </div>
           </Field>
 
-          <Field label="Horizon d'investissement global">
-            <Chips options={['< 3 ans', '3–8 ans', '8–15 ans', '15 ans+']}
-              value={state.horizonInvest} onChange={v => upd('horizonInvest', v as string)} />
-          </Field>
+          {/* Horizon d'investissement global — complet uniquement */}
+          {!isRapide && (
+            <Field label="Horizon d'investissement global">
+              <Chips options={['< 3 ans', '3–8 ans', '8–15 ans', '15 ans+']}
+                value={state.horizonInvest} onChange={v => upd('horizonInvest', v as string)} />
+            </Field>
+          )}
         </div>
         </FadeIn>
 
@@ -743,72 +758,72 @@ export default function Bloc5() {
               <div className="flex-1 h-px bg-gray-100" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {/* Retraite */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
-                <p className="text-[13px] font-semibold text-gray-800 mb-3">Retraite — {p1Label}</p>
-                {[
-                  { label: 'Départ prévu', value: annesAvantP1 !== null ? `Dans ${annesAvantP1} ans (${new Date().getFullYear() + (annesAvantP1 ?? 0)})` : '—' },
-                  { label: 'Pension estimée', value: `${fmt(pensionNettP1)} €/mois` },
-                  { label: 'Objectif', value: `${fmt(state.retraiteP1.revenusCibles)} €/mois` },
-                  { label: 'Déficit à couvrir', value: `${fmt(Math.max(0, state.retraiteP1.revenusCibles - pensionNettP1))} €/mois` },
-                  { label: 'Capital projeté', value: `${fmt(capitalProjecte)} €` },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
-                    <span className="text-[12px] text-gray-400">{label}</span>
-                    <span className="text-[12px] font-semibold text-gray-800">{value}</span>
-                  </div>
-                ))}
-                <div className={`rounded-lg px-3 py-2 text-[12px] font-semibold mt-2 ${
-                  capitalProjecte >= (parseNum(state.retraiteP1.patrimoineCouvrir) || capitalProjecte) ? 'bg-[#E1F5EE] text-[#085041]'
-                  : state.retraiteP1.revenusCibles - pensionNettP1 <= 500 ? 'bg-amber-50 text-amber-700'
-                  : 'bg-red-50 text-red-700'
-                }`}>
-                  {capitalProjecte >= (parseNum(state.retraiteP1.patrimoineCouvrir) || capitalProjecte) ? '✓ Objectif atteignable'
-                  : state.retraiteP1.revenusCibles - pensionNettP1 <= 500 ? '⚠ Effort supplémentaire nécessaire'
-                  : '⚠ Déficit important — action requise'}
+            {/* Retraite */}
+            <div className={`grid ${isCouple ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
+              {([
+                { label: p1Label, isP2: false, annesAvant: annesAvantP1, pension: pensionNettP1, cibles: state.retraiteP1.revenusCibles },
+                ...(isCouple ? [{ label: p2Label, isP2: true, annesAvant: annesAvantP2, pension: pensionNettP2, cibles: state.retraiteP2.revenusCibles }] : []),
+              ] as { label: string; isP2: boolean; annesAvant: number | null; pension: number; cibles: number }[]).map(({ label, isP2, annesAvant, pension, cibles }) => (
+                <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+                  <PersonneBadge label={label} isP2={isP2} />
+                  {[
+                    { label: 'Départ prévu', value: annesAvant !== null ? `Dans ${annesAvant} ans (${new Date().getFullYear() + (annesAvant ?? 0)})` : '—' },
+                    { label: 'Pension estimée', value: `${fmt(pension)} €/mois` },
+                    { label: 'Objectif', value: `${fmt(cibles)} €/mois` },
+                    { label: 'Déficit à couvrir', value: `${fmt(Math.max(0, cibles - pension))} €/mois` },
+                    ...(!isRapide ? [{ label: 'Capital projeté', value: `${fmt(capitalProjecte)} €` }] : []),
+                  ].map(({ label: lbl, value }) => (
+                    <div key={lbl} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
+                      <span className="text-[12px] text-gray-400">{lbl}</span>
+                      <span className="text-[12px] font-semibold text-gray-800">{value}</span>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              ))}
+            </div>
 
-              {/* Projets */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
-                <p className="text-[13px] font-semibold text-gray-800 mb-3">Projets</p>
-                {[
-                  { label: 'Projets identifiés', value: `${state.projets.length}` },
-                  { label: 'Budget total', value: `${fmt(budgetTotal)} €` },
-                  { label: 'Court terme', value: `${fmt(budgetCT)} € (${state.projets.filter(p => p.horizon === 'Court terme (0–3 ans)').length} projet${budgetCT > 0 ? 's' : ''})` },
-                  { label: 'Moyen terme', value: `${fmt(budgetMT)} €` },
-                  { label: 'Long terme', value: `${fmt(budgetLT)} €` },
-                  { label: 'Finançable épargne', value: `${fmt(Math.min(budgetTotal, capacite * 12 * 5))} €` },
-                  { label: 'Besoin complémentaire', value: `${fmt(Math.max(0, budgetTotal - capacite * 12 * 5))} €` },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
-                    <span className="text-[12px] text-gray-400">{label}</span>
-                    <span className="text-[12px] font-semibold text-gray-800">{value}</span>
+            {/* Projets + graphique — complet uniquement */}
+            {!isRapide && (
+              <>
+                {state.aProjects && state.projets.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+                    <p className="text-[13px] font-semibold text-gray-800 mb-3">Projets</p>
+                    {[
+                      { label: 'Projets identifiés', value: `${state.projets.length}` },
+                      { label: 'Court terme', value: `${fmt(budgetCT)} €` },
+                      { label: 'Moyen terme', value: `${fmt(budgetMT)} €` },
+                      { label: 'Long terme', value: `${fmt(budgetLT)} €` },
+                      { label: 'Besoin complémentaire', value: `${fmt(Math.max(0, budgetTotal - capacite * 12 * 5))} €` },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
+                        <span className="text-[12px] text-gray-400">{label}</span>
+                        <span className="text-[12px] font-semibold text-gray-800">{value}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                )}
 
-            {/* Graphique projection */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <p className="text-[13px] font-semibold text-gray-800 mb-4">Projection du capital dans le temps</p>
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={chartData} margin={{ left: 10, right: 10 }}>
-                  <XAxis dataKey="annee" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${fmt(v / 1000)}k`} />
-                  <Tooltip formatter={(v: number) => `${fmt(v)} €`} />
-                  <Legend />
-                  {annesAvantP1 !== null && (
-                    <ReferenceLine x={new Date().getFullYear() + annesAvantP1} stroke="#185FA5" strokeDasharray="4 2" label={{ value: 'Retraite', fontSize: 10, fill: '#185FA5' }} />
-                  )}
-                  <Line type="monotone" dataKey="capitalProjecte" stroke="#185FA5" strokeWidth={2} dot={false} name="Capital projeté" />
-                  {state.retraiteP1.patrimoineCouvrir && (
-                    <Line type="monotone" dataKey="objectif" stroke="#0F6E56" strokeWidth={1.5} strokeDasharray="6 3" dot={false} name="Objectif retraite" />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+                {/* Graphique projection */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <p className="text-[13px] font-semibold text-gray-800 mb-4">Projection du capital dans le temps</p>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={chartData} margin={{ left: 10, right: 10 }}>
+                      <XAxis dataKey="annee" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${fmt(v / 1000)}k`} />
+                      <Tooltip formatter={(v: number) => `${fmt(v)} €`} />
+                      <Legend />
+                      {annesAvantP1 !== null && (
+                        <ReferenceLine x={new Date().getFullYear() + annesAvantP1} stroke="#185FA5" strokeDasharray="4 2" label={{ value: 'Retraite', fontSize: 10, fill: '#185FA5' }} />
+                      )}
+                      <Line type="monotone" dataKey="capitalProjecte" stroke="#185FA5" strokeWidth={2} dot={false} name="Capital projeté" />
+                      {state.retraiteP1.patrimoineCouvrir && (
+                        <Line type="monotone" dataKey="objectif" stroke="#0F6E56" strokeWidth={1.5} strokeDasharray="6 3" dot={false} name="Objectif retraite" />
+                      )}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
+            )}
 
             <button type="button" onClick={() => navigate(getNextBloc(5))}
               className="w-full py-4 rounded-2xl bg-[#185FA5] text-white text-[14px] font-semibold hover:bg-[#0C447C] transition-colors shadow-[0_4px_14px_rgba(24,95,165,0.25)]">
@@ -826,11 +841,15 @@ export default function Bloc5() {
             <span className="text-[13px] font-bold text-[#185FA5]">{annesAvantP1 !== null ? `dans ${annesAvantP1} ans` : '—'}</span>
           </div>
           <div className="h-4 w-px bg-gray-200" />
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-gray-400">Budget projets</span>
-            <span className="text-[13px] font-bold text-gray-700">{fmt(budgetTotal)} €</span>
-          </div>
-          <div className="h-4 w-px bg-gray-200" />
+          {!isRapide && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-gray-400">Budget projets</span>
+                <span className="text-[13px] font-bold text-gray-700">{fmt(budgetTotal)} €</span>
+              </div>
+              <div className="h-4 w-px bg-gray-200" />
+            </>
+          )}
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-gray-400">Capacité d'épargne</span>
             <span className="text-[13px] font-bold text-[#0F6E56]">{fmt(capacite)} €/mois</span>

@@ -9,89 +9,49 @@ import { getNextBloc } from '../utils/navigation'
 
 interface CreditImmo {
   id: string
-  bienFinance: string
-  bienLibre: string
-  etablissement: string
-  typePret: string
   taux: string
-  typeTaux: string
-  montantInitial: string
   crd: string
-  crdInconnu: boolean
-  dateDebut: string
-  dureeInitiale: string
-  dureeUnite: 'Mois' | 'Années'
-  mensualiteHA: string
-  mensualiteAssurance: string
-  modulation: boolean
-  modulationDesc: string
-  garantie: string
-  emprunteurs: string
-  quotiteP1: string
-  quotiteP2: string
+  mensualiteTotale: string        // mensualité totale avec assurance
+  dureeRestante: string           // durée restante directe
+  dureeRestanteUnite: 'Mois' | 'Années'
 }
 
 interface CreditConso {
   id: string
-  type: string
-  etablissement: string
-  objet: string
-  montantInitial: string
   crd: string
-  taeg: string
   mensualite: string
-  dateFin: string
-  emprunteur: string
 }
 
 interface PretEtudiant {
   id: string
-  etablissement: string
-  montantInitial: string
   crd: string
-  taux: string
   mensualite: string
-  differe: boolean
-  dateDebutRemboursement: string
-  dateFin: string
-  emprunteur: string
 }
 
 interface DecouvertBancaire {
   id: string
-  etablissement: string
-  montantAutorise: string
   montantUtilise: string
-  tauxAgios: string
-  caractere: string
-  titulaire: string
 }
 
 interface DetteFamiliale {
   id: string
-  creancier: string
-  creancierLibre: string
-  lien: string
   montantDu: string
-  remboursementPrevu: boolean
-  echeance: string
   mensualite: string
-  taux: string
-  acteNotarie: boolean
 }
 
 interface AutreDette {
   id: string
-  description: string
   montantDu: string
-  echeance: string
   mensualite: string
-  creancier: string
 }
 
 interface Bloc3State {
   aDettes: boolean
   typesSelectionnes: string[]
+  // Rapide mode — saisie directe
+  montantTotalDettesSaisi: string
+  mensualitesTotalesSaisies: string
+  // Complet mode — détail
   creditsImmo: CreditImmo[]
   creditsConso: CreditConso[]
   pretsEtudiants: PretEtudiant[]
@@ -104,37 +64,21 @@ interface Bloc3State {
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 const defCI = (): CreditImmo => ({
-  id: crypto.randomUUID(), bienFinance: '', bienLibre: '', etablissement: '',
-  typePret: '', taux: '', typeTaux: '', montantInitial: '', crd: '', crdInconnu: false,
-  dateDebut: '', dureeInitiale: '', dureeUnite: 'Années', mensualiteHA: '',
-  mensualiteAssurance: '', modulation: false, modulationDesc: '', garantie: '',
-  emprunteurs: '', quotiteP1: '50', quotiteP2: '50',
+  id: crypto.randomUUID(), taux: '', crd: '', mensualiteTotale: '',
+  dureeRestante: '', dureeRestanteUnite: 'Années',
 })
-const defCC = (): CreditConso => ({
-  id: crypto.randomUUID(), type: '', etablissement: '', objet: '', montantInitial: '',
-  crd: '', taeg: '', mensualite: '', dateFin: '', emprunteur: '',
-})
-const defPE = (): PretEtudiant => ({
-  id: crypto.randomUUID(), etablissement: '', montantInitial: '', crd: '',
-  taux: '', mensualite: '', differe: false, dateDebutRemboursement: '', dateFin: '', emprunteur: '',
-})
-const defDB = (): DecouvertBancaire => ({
-  id: crypto.randomUUID(), etablissement: '', montantAutorise: '',
-  montantUtilise: '', tauxAgios: '', caractere: '', titulaire: '',
-})
-const defDF = (): DetteFamiliale => ({
-  id: crypto.randomUUID(), creancier: '', creancierLibre: '', lien: '',
-  montantDu: '', remboursementPrevu: false, echeance: '', mensualite: '',
-  taux: '0', acteNotarie: false,
-})
-const defAD = (): AutreDette => ({
-  id: crypto.randomUUID(), description: '', montantDu: '', echeance: '',
-  mensualite: '', creancier: '',
-})
+const defCC = (): CreditConso => ({ id: crypto.randomUUID(), crd: '', mensualite: '' })
+const defPE = (): PretEtudiant => ({ id: crypto.randomUUID(), crd: '', mensualite: '' })
+const defDB = (): DecouvertBancaire => ({ id: crypto.randomUUID(), montantUtilise: '' })
+const defDF = (): DetteFamiliale => ({ id: crypto.randomUUID(), montantDu: '', mensualite: '' })
+const defAD = (): AutreDette => ({ id: crypto.randomUUID(), montantDu: '', mensualite: '' })
+
 const defaultState = (): Bloc3State => ({
-  aDettes: false, typesSelectionnes: [], creditsImmo: [], creditsConso: [],
-  pretsEtudiants: [], decouvertsBancaires: [], dettesFamiliales: [],
-  autresDettes: [], showSynthese: false,
+  aDettes: false, typesSelectionnes: [],
+  montantTotalDettesSaisi: '', mensualitesTotalesSaisies: '',
+  creditsImmo: [], creditsConso: [], pretsEtudiants: [],
+  decouvertsBancaires: [], dettesFamiliales: [], autresDettes: [],
+  showSynthese: false,
 })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -148,58 +92,6 @@ function loadFromStorage<T extends object>(key: string, fallback: T): T {
 }
 const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })
 const parseNum = (s: string) => { const n = parseFloat(String(s).replace(/\s/g, '').replace(',', '.')); return isNaN(n) ? 0 : n }
-
-function monthsUntil(dateStr: string): number | null {
-  if (!dateStr) return null
-  const diff = new Date(dateStr).getTime() - Date.now()
-  return Math.max(0, Math.round(diff / (1000 * 60 * 60 * 24 * 30.44)))
-}
-
-function dateFinPret(dateDebut: string, duree: string, unite: 'Mois' | 'Années'): string | null {
-  if (!dateDebut || !duree) return null
-  const d = new Date(dateDebut)
-  const n = parseInt(duree)
-  if (isNaN(n)) return null
-  if (unite === 'Années') d.setFullYear(d.getFullYear() + n)
-  else d.setMonth(d.getMonth() + n)
-  return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
-}
-
-function anneesRestantes(dateDebut: string, duree: string, unite: 'Mois' | 'Années'): string | null {
-  if (!dateDebut || !duree) return null
-  const debut = new Date(dateDebut)
-  const n = parseInt(duree)
-  if (isNaN(n)) return null
-  const fin = new Date(debut)
-  if (unite === 'Années') fin.setFullYear(fin.getFullYear() + n)
-  else fin.setMonth(fin.getMonth() + n)
-  const msRestants = fin.getTime() - Date.now()
-  if (msRestants <= 0) return 'Terminé'
-  const moisRestants = Math.round(msRestants / (1000 * 60 * 60 * 24 * 30.44))
-  const ans = Math.floor(moisRestants / 12)
-  const mois = moisRestants % 12
-  return ans > 0 ? `dans ${ans} an${ans > 1 ? 's' : ''}${mois > 0 ? ` et ${mois} mois` : ''}` : `dans ${mois} mois`
-}
-
-// CRD auto-estimé par amortissement
-function estimateCRD(montant: string, taux: string, mensualite: string, dateDebut: string, duree: string, unite: 'Mois' | 'Années'): number | null {
-  const M = parseNum(montant), r = parseNum(taux) / 100 / 12, m = parseNum(mensualite)
-  if (!M || !dateDebut) return null
-  const debut = new Date(dateDebut)
-  const moisEcoules = Math.round((Date.now() - debut.getTime()) / (1000 * 60 * 60 * 24 * 30.44))
-  if (moisEcoules < 0) return null
-  if (r === 0) {
-    const dureeM = unite === 'Années' ? parseInt(duree) * 12 : parseInt(duree)
-    return Math.max(0, M - (m || M / dureeM) * moisEcoules)
-  }
-  let crd = M
-  for (let i = 0; i < moisEcoules && crd > 0; i++) {
-    const interets = crd * r
-    const amort = (m || 0) - interets
-    crd = Math.max(0, crd - amort)
-  }
-  return Math.round(crd)
-}
 
 // ─── Base UI ──────────────────────────────────────────────────────────────────
 
@@ -242,16 +134,8 @@ function Input({ value, onChange, type = 'text', placeholder = '', suffix }: { v
   )
 }
 
-function Select({ value, onChange, children }: { value: string; onChange: (v: string) => void; children: React.ReactNode }) {
-  return (
-    <select value={value} onChange={e => onChange(e.target.value)}
-      className="w-full h-10 bg-gray-50 border border-transparent rounded-lg px-3 text-[13px] text-gray-800 focus:outline-none focus:bg-white focus:border-[#185FA5] focus:shadow-[0_0_0_3px_rgba(24,95,165,0.08)] transition-all cursor-pointer">
-      {children}
-    </select>
-  )
-}
-
-function Chips({ options, value, onChange, multi = false, small = false }: { options: string[]; value: string | string[]; onChange: (v: string | string[]) => void; multi?: boolean; small?: boolean }) {
+function Chips({ options, value, onChange, small = false }: { options: string[]; value: string | string[]; onChange: (v: string | string[]) => void; multi?: boolean; small?: boolean }) {
+  const multi = Array.isArray(value)
   const isSelected = (o: string) => multi ? (value as string[]).includes(o) : value === o
   const handleClick = (o: string) => {
     if (multi) { const a = value as string[]; onChange(a.includes(o) ? a.filter(x => x !== o) : [...a, o]) }
@@ -324,27 +208,9 @@ function CardWrap({ title, subtitle, onRemove, children }: { title: string; subt
 export default function Bloc3() {
   const navigate = useNavigate()
 
-  // Lire données Bloc 1 et Bloc 2
-  const p1Data = loadFromStorage<{ prenom?: string }>('patrisim_bloc1_p1', {})
-  const p2Data = loadFromStorage<{ prenom?: string }>('patrisim_bloc1_p2', {})
-  const modeData = loadFromStorage<{ v?: string }>('patrisim_bloc1_mode', {})
-  const isCouple = modeData.v === 'couple'
-  const p1Label = p1Data.prenom?.trim() || 'Personne 1'
-  const p2Label = p2Data.prenom?.trim() || 'Personne 2'
-
-  // Biens Bloc 2 pour le select "bien financé"
-  const bloc2 = loadFromStorage<{ rp?: { ville?: string; typeBien?: string }; biens?: { ville?: string; typeBien?: string }[]; proprietaireRP?: boolean }>('patrisim_bloc2', {})
-  const biensBloc2: string[] = []
-  if (bloc2.proprietaireRP && bloc2.rp) {
-    biensBloc2.push([bloc2.rp.typeBien, bloc2.rp.ville].filter(Boolean).join(' — ') || 'Résidence principale')
-  }
-  ;(bloc2.biens || []).forEach((b, i) => {
-    biensBloc2.push([b.typeBien, b.ville].filter(Boolean).join(' — ') || `Bien ${i + 1}`)
-  })
-
-  // Personnes Bloc 1 pour créanciers
-  const foyerBloc1 = loadFromStorage<{ autresCharges?: { prenom?: string; lien?: string }[] }>('patrisim_bloc1_foyer', {})
-  const personnesConnues = [p1Label, p2Label, ...(foyerBloc1.autresCharges || []).map(c => c.prenom).filter(Boolean) as string[]]
+  const bloc0 = loadFromStorage<{ niveauDetail?: 'rapide' | 'complet' }>('patrisim_bloc0', {})
+  const niveauDetail = bloc0.niveauDetail || 'complet'
+  const isRapide = niveauDetail === 'rapide'
 
   const [state, setState] = useState<Bloc3State>(() => loadFromStorage('patrisim_bloc3', defaultState()))
   const [savedAt, setSavedAt] = useState('')
@@ -362,39 +228,31 @@ export default function Bloc3() {
   const totalDecouvert = state.decouvertsBancaires.reduce((a, d) => a + parseNum(d.montantUtilise), 0)
   const totalFamilial = state.dettesFamiliales.reduce((a, d) => a + parseNum(d.montantDu), 0)
   const totalAutre = state.autresDettes.reduce((a, d) => a + parseNum(d.montantDu), 0)
-  const totalDettes = totalImmo + totalConso + totalEtudiant + totalDecouvert + totalFamilial + totalAutre
+  const totalDettesComplet = totalImmo + totalConso + totalEtudiant + totalDecouvert + totalFamilial + totalAutre
 
-  const mensualiteImmo = state.creditsImmo.reduce((a, c) => a + parseNum(c.mensualiteHA) + parseNum(c.mensualiteAssurance), 0)
-  const mensualiteAssurance = state.creditsImmo.reduce((a, c) => a + parseNum(c.mensualiteAssurance), 0)
+  const mensualiteImmo = state.creditsImmo.reduce((a, c) => a + parseNum(c.mensualiteTotale), 0)
   const mensualiteConso = state.creditsConso.reduce((a, c) => a + parseNum(c.mensualite), 0)
   const mensualiteEtudiant = state.pretsEtudiants.reduce((a, p) => a + parseNum(p.mensualite), 0)
-  const mensualiteFamilial = state.dettesFamiliales.filter(d => d.remboursementPrevu).reduce((a, d) => a + parseNum(d.mensualite), 0)
+  const mensualiteFamilial = state.dettesFamiliales.reduce((a, d) => a + parseNum(d.mensualite), 0)
   const mensualiteAutre = state.autresDettes.reduce((a, d) => a + parseNum(d.mensualite), 0)
-  const totalMensualites = mensualiteImmo + mensualiteConso + mensualiteEtudiant + mensualiteFamilial + mensualiteAutre
+  const totalMensualitesComplet = mensualiteImmo + mensualiteConso + mensualiteEtudiant + mensualiteFamilial + mensualiteAutre
 
-  // Durée résiduelle moyenne crédit immo
-  const dureesMois = state.creditsImmo
+  const totalDettes = isRapide ? parseNum(state.montantTotalDettesSaisi) : totalDettesComplet
+  const totalMensualites = isRapide ? parseNum(state.mensualitesTotalesSaisies) : totalMensualitesComplet
+
+  // Durée résiduelle moyenne (complet uniquement)
+  const dureesAns = state.creditsImmo
     .map(c => {
-      if (!c.dateDebut || !c.dureeInitiale) return null
-      const fin = new Date(c.dateDebut)
-      if (c.dureeUnite === 'Années') fin.setFullYear(fin.getFullYear() + parseInt(c.dureeInitiale))
-      else fin.setMonth(fin.getMonth() + parseInt(c.dureeInitiale))
-      return Math.max(0, Math.round((fin.getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 365.25)))
+      const n = parseInt(c.dureeRestante)
+      if (isNaN(n)) return null
+      return c.dureeRestanteUnite === 'Années' ? n : Math.round(n / 12)
     }).filter(Boolean) as number[]
-  const dureeMoyenne = dureesMois.length ? Math.round(dureesMois.reduce((a, b) => a + b, 0) / dureesMois.length) : 0
+  const dureeMoyenne = dureesAns.length ? Math.round(dureesAns.reduce((a, b) => a + b, 0) / dureesAns.length) : 0
 
-  const bloc2State = loadFromStorage<{ showSynthese?: boolean }>('patrisim_bloc2', {})
-  const patrimoineBrut = (() => {
-    const b2 = loadFromStorage<Record<string, unknown>>('patrisim_bloc2', {})
-    const parseB2Val = (key: string) => parseNum(String(b2[key] || '0'))
-    // Simple sum — we use what's available
-    return parseB2Val('totalBrut') || 0
-  })()
-
+  const bloc2State = loadFromStorage<Record<string, unknown>>('patrisim_bloc2', {})
+  const patrimoineBrut = parseNum(String(bloc2State['totalBrut'] || '0'))
   const tauxEndettementPatrimoine = patrimoineBrut > 0 ? Math.round(totalDettes / patrimoineBrut * 100) : 0
   const patrimoineNet = patrimoineBrut - totalDettes
-
-  const typesSelectionnes = state.typesSelectionnes
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const addCI = () => upd('creditsImmo', [...state.creditsImmo, defCI()])
@@ -455,7 +313,7 @@ export default function Bloc3() {
         {/* Question d'entrée */}
         <FadeIn delay={0}>
         <div className="mb-8">
-          <Field label="Avez-vous des crédits ou dettes en cours ?">
+          <Field label="Avez-vous des dettes ?">
             <Toggle value={state.aDettes} onChange={v => upd('aDettes', v)} />
           </Field>
         </div>
@@ -475,244 +333,125 @@ export default function Bloc3() {
           </div>
         )}
 
-        {/* Si oui */}
-        {state.aDettes && (
+        {/* Si oui — MODE RAPIDE */}
+        {state.aDettes && isRapide && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Montant total des dettes">
+                <Input value={state.montantTotalDettesSaisi} onChange={v => upd('montantTotalDettesSaisi', v)} placeholder="0" suffix="€" />
+              </Field>
+              <Field label="Mensualités totales">
+                <Input value={state.mensualitesTotalesSaisies} onChange={v => upd('mensualitesTotalesSaisies', v)} placeholder="0" suffix="€/mois" />
+              </Field>
+            </div>
+            {(totalDettes > 0 || totalMensualites > 0) && (
+              <button type="button" onClick={() => navigate(getNextBloc(3))}
+                className="w-full py-4 rounded-2xl bg-[#185FA5] text-white text-[14px] font-semibold hover:bg-[#0C447C] transition-colors shadow-[0_4px_14px_rgba(24,95,165,0.25)]">
+                Confirmer et passer au Bloc 4 →
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Si oui — MODE COMPLET */}
+        {state.aDettes && !isRapide && (
           <>
             {/* Sélection des types */}
             <div className="mb-8">
               <Field label="Quels types de dettes avez-vous ?">
                 <Chips
-                  options={['Crédit immobilier', 'Crédit à la consommation', 'Prêt étudiant', 'Découvert bancaire', 'Dettes familiales', 'Autre']}
-                  value={typesSelectionnes} onChange={v => upd('typesSelectionnes', v as string[])} multi
+                  options={['Crédit immobilier', 'Crédit conso / étudiant', 'Découvert bancaire', 'Dettes familiales / autres']}
+                  value={state.typesSelectionnes} onChange={v => upd('typesSelectionnes', v as string[])}
                 />
               </Field>
             </div>
 
             {/* ── CRÉDIT IMMOBILIER ─────────────────────────────────────────── */}
-            {typesSelectionnes.includes('Crédit immobilier') && (
+            {state.typesSelectionnes.includes('Crédit immobilier') && (
               <>
                 <SectionDivider label="Crédit immobilier" />
                 <div className="space-y-3 mb-6">
                   <AnimatePresence>
-                  {state.creditsImmo.map(c => {
-                    const totalMens = parseNum(c.mensualiteHA) + parseNum(c.mensualiteAssurance)
-                    const finLabel = dateFinPret(c.dateDebut, c.dureeInitiale, c.dureeUnite)
-                    const restantLabel = anneesRestantes(c.dateDebut, c.dureeInitiale, c.dureeUnite)
-                    const crdEstime = c.crdInconnu ? estimateCRD(c.montantInitial, c.taux, c.mensualiteHA, c.dateDebut, c.dureeInitiale, c.dureeUnite) : null
-                    const crdAffiche = c.crd || (crdEstime !== null ? String(Math.round(crdEstime)) : '')
-                    const summaryTitle = [c.etablissement, c.bienFinance !== 'Bien non renseigné en Bloc 2' ? c.bienFinance : c.bienLibre].filter(Boolean).join(' · ') || 'Crédit immobilier'
-                    const summaryVal = parseNum(crdAffiche) > 0 ? `${fmt(parseNum(crdAffiche))} € restants` : undefined
+                  {state.creditsImmo.map((c, idx) => (
+                    <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
+                    <CardWrap
+                      title={`Crédit immobilier ${state.creditsImmo.length > 1 ? idx + 1 : ''}`}
+                      subtitle={parseNum(c.crd) > 0 ? `${fmt(parseNum(c.crd))} € restants` : undefined}
+                      onRemove={() => removeCI(c.id)}
+                    >
+                      <Field label="Capital restant dû (CRD)">
+                        <Input value={c.crd} onChange={v => updateCI(c.id, { ...c, crd: v })} placeholder="150 000" suffix="€" />
+                      </Field>
 
-                    return (
-                      <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
-                      <CardWrap title={summaryTitle} subtitle={summaryVal} onRemove={() => removeCI(c.id)}>
-                        {/* Bien financé */}
-                        <Field label="Bien financé">
-                          <Select value={c.bienFinance} onChange={v => updateCI(c.id, { ...c, bienFinance: v })}>
-                            <option value="">Sélectionnez…</option>
-                            {biensBloc2.map(b => <option key={b}>{b}</option>)}
-                            <option value="Bien non renseigné en Bloc 2">Bien non renseigné en Bloc 2</option>
-                          </Select>
-                        </Field>
-                        {c.bienFinance === 'Bien non renseigné en Bloc 2' && (
-                          <Field label="Précisez le bien">
-                            <Input value={c.bienLibre} onChange={v => updateCI(c.id, { ...c, bienLibre: v })} placeholder="Ex : appartement Paris 75011" />
-                          </Field>
-                        )}
+                      <Field label="Mensualité totale (avec assurance)">
+                        <Input value={c.mensualiteTotale} onChange={v => updateCI(c.id, { ...c, mensualiteTotale: v })} placeholder="985" suffix="€" />
+                      </Field>
 
-                        <Field label="Établissement prêteur">
-                          <Input value={c.etablissement} onChange={v => updateCI(c.id, { ...c, etablissement: v })} placeholder="BNP Paribas" />
-                        </Field>
+                      <Field label="Taux">
+                        <Input type="number" value={c.taux} onChange={v => updateCI(c.id, { ...c, taux: v })} placeholder="3.50" suffix="%" />
+                      </Field>
 
-                        <Field label="Type de prêt">
-                          <Chips options={['Prêt amortissable classique', 'PTZ (Prêt à taux zéro)', 'Prêt in fine', 'Prêt relais', 'Prêt employeur (1% logement)']}
-                            value={c.typePret} onChange={v => updateCI(c.id, { ...c, typePret: v as string })} small />
-                        </Field>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <Field label="Taux">
-                            <Input type="number" value={c.taux} onChange={v => updateCI(c.id, { ...c, taux: v })} placeholder="3.50" suffix="%" />
-                          </Field>
-                          <Field label="Type de taux">
-                            <Chips options={['Fixe', 'Variable', 'Mixte']} value={c.typeTaux} onChange={v => updateCI(c.id, { ...c, typeTaux: v as string })} />
-                          </Field>
+                      <Field label="Durée restante">
+                        <div className="flex gap-2">
+                          <Input type="number" value={c.dureeRestante} onChange={v => updateCI(c.id, { ...c, dureeRestante: v })} placeholder="15" />
+                          <Chips options={['Mois', 'Années']} value={c.dureeRestanteUnite} onChange={v => updateCI(c.id, { ...c, dureeRestanteUnite: v as 'Mois' | 'Années' })} small />
                         </div>
-
-                        <Field label="Montant emprunté initial">
-                          <Input value={c.montantInitial} onChange={v => updateCI(c.id, { ...c, montantInitial: v })} placeholder="200 000" suffix="€" />
-                        </Field>
-
-                        {/* CRD */}
-                        <div className="space-y-2">
-                          <Field label="Capital restant dû (CRD)">
-                            {!c.crdInconnu && (
-                              <Input value={c.crd} onChange={v => updateCI(c.id, { ...c, crd: v })} placeholder="150 000" suffix="€" />
-                            )}
-                          </Field>
-                          <label className="flex items-center gap-2 cursor-pointer select-none">
-                            <input type="checkbox" checked={c.crdInconnu} onChange={e => updateCI(c.id, { ...c, crdInconnu: e.target.checked, crd: '' })}
-                              className="rounded border-gray-300 text-[#185FA5] focus:ring-[#185FA5]" />
-                            <span className="text-[12px] text-gray-500">Je ne connais pas mon CRD</span>
-                          </label>
-                          {c.crdInconnu && crdEstime !== null && (
-                            <div className="bg-gray-50 rounded-lg px-4 py-2.5">
-                              <p className="text-[12px] text-gray-500 italic">Estimation CRD : <strong className="text-gray-700">{fmt(crdEstime)} €</strong> · basée sur vos données</p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Mensualités */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <Field label="Mensualité hors assurance">
-                            <Input value={c.mensualiteHA} onChange={v => updateCI(c.id, { ...c, mensualiteHA: v })} placeholder="900" suffix="€" />
-                          </Field>
-                          <Field label="Mensualité assurance emprunteur">
-                            <Input value={c.mensualiteAssurance} onChange={v => updateCI(c.id, { ...c, mensualiteAssurance: v })} placeholder="85" suffix="€" />
-                          </Field>
-                        </div>
-                        {totalMens > 0 && (
-                          <div className="bg-[#E6F1FB] rounded-lg px-4 py-2.5">
-                            <p className="text-[12px] text-[#0C447C] font-medium">Total mensualité : <strong>{fmt(totalMens)} €/mois</strong>{parseNum(c.mensualiteAssurance) > 0 ? ` (dont ${fmt(parseNum(c.mensualiteAssurance))} € assurance)` : ''}</p>
-                          </div>
-                        )}
-
-                        {/* Durée */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <Field label="Date de début du prêt">
-                            <Input type="date" value={c.dateDebut} onChange={v => updateCI(c.id, { ...c, dateDebut: v })} />
-                          </Field>
-                          <Field label="Durée initiale">
-                            <div className="flex gap-2">
-                              <Input type="number" value={c.dureeInitiale} onChange={v => updateCI(c.id, { ...c, dureeInitiale: v })} placeholder="20" />
-                              <Chips options={['Mois', 'Années']} value={c.dureeUnite} onChange={v => updateCI(c.id, { ...c, dureeUnite: v as 'Mois' | 'Années' })} small />
-                            </div>
-                          </Field>
-                        </div>
-                        {finLabel && (
-                          <div className="bg-gray-50 rounded-lg px-4 py-2.5">
-                            <p className="text-[12px] text-gray-500">Fin prévue : <strong className="text-gray-700">{finLabel}</strong> <span className="text-gray-400">({restantLabel})</span></p>
-                          </div>
-                        )}
-
-                        <Field label="Modulation ou report effectué ?">
-                          <Toggle value={c.modulation} onChange={v => updateCI(c.id, { ...c, modulation: v })} />
-                        </Field>
-                        {c.modulation && (
-                          <Field label="Précisez">
-                            <Input value={c.modulationDesc} onChange={v => updateCI(c.id, { ...c, modulationDesc: v })} placeholder="Report de 3 mois en 2023…" />
-                          </Field>
-                        )}
-
-                        <Field label="Garantie">
-                          <Chips options={['Hypothèque', 'Caution (Crédit Logement)', 'PPD (Privilège de prêteur de deniers)', 'Autre']}
-                            value={c.garantie} onChange={v => updateCI(c.id, { ...c, garantie: v as string })} small />
-                        </Field>
-
-                        <Field label="Emprunteur(s)">
-                          <Chips options={isCouple ? [`${p1Label} seul`, `${p2Label} seul`, 'Les deux'] : [`${p1Label} seul`]}
-                            value={c.emprunteurs} onChange={v => updateCI(c.id, { ...c, emprunteurs: v as string })} />
-                        </Field>
-                        {c.emprunteurs === 'Les deux' && (
-                          <div className="grid grid-cols-2 gap-4">
-                            <Field label={`Quotité ${p1Label} (%)`}>
-                              <Input type="number" value={c.quotiteP1} onChange={v => updateCI(c.id, { ...c, quotiteP1: v, quotiteP2: String(100 - parseNum(v)) })} placeholder="50" suffix="%" />
-                            </Field>
-                            <Field label={`Quotité ${p2Label} (%)`}>
-                              <Input type="number" value={c.quotiteP2} onChange={v => updateCI(c.id, { ...c, quotiteP2: v, quotiteP1: String(100 - parseNum(v)) })} placeholder="50" suffix="%" />
-                            </Field>
-                          </div>
-                        )}
-                      </CardWrap>
-                      </motion.div>
-                    )
-                  })}
+                      </Field>
+                    </CardWrap>
+                    </motion.div>
+                  ))}
                   </AnimatePresence>
                   <AddBtn onClick={addCI} label="Ajouter un crédit immobilier" />
                 </div>
               </>
             )}
 
-            {/* ── CRÉDIT CONSO ──────────────────────────────────────────────── */}
-            {typesSelectionnes.includes('Crédit à la consommation') && (
+            {/* ── CRÉDIT CONSO / ÉTUDIANT ───────────────────────────────────── */}
+            {state.typesSelectionnes.includes('Crédit conso / étudiant') && (
               <>
-                <SectionDivider label="Crédit à la consommation" />
+                <SectionDivider label="Crédit conso / étudiant" />
                 <div className="space-y-3 mb-6">
                   <AnimatePresence>
-                  {state.creditsConso.map(c => {
-                    const moisRestants = monthsUntil(c.dateFin)
-                    return (
-                      <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
-                      <CardWrap title={[c.type, c.etablissement].filter(Boolean).join(' · ') || 'Crédit conso'} subtitle={c.crd ? `${fmt(parseNum(c.crd))} €` : undefined} onRemove={() => removeCC(c.id)}>
-                        <Field label="Type">
-                          <Chips options={['Crédit auto', 'Crédit travaux', 'Crédit personnel', 'Revolving', 'Autre']}
-                            value={c.type} onChange={v => updateCC(c.id, { ...c, type: v as string })} />
+                  {state.creditsConso.map((c, idx) => (
+                    <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
+                    <CardWrap
+                      title={`Crédit conso ${state.creditsConso.length > 1 ? idx + 1 : ''}`}
+                      subtitle={parseNum(c.crd) > 0 ? `${fmt(parseNum(c.crd))} €` : undefined}
+                      onRemove={() => removeCC(c.id)}
+                    >
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Capital restant dû">
+                          <Input value={c.crd} onChange={v => updateCC(c.id, { ...c, crd: v })} placeholder="0" suffix="€" />
                         </Field>
-                        <div className="grid grid-cols-2 gap-4">
-                          <Field label="Établissement"><Input value={c.etablissement} onChange={v => updateCC(c.id, { ...c, etablissement: v })} placeholder="Cetelem" /></Field>
-                          <Field label="Objet du crédit (optionnel)"><Input value={c.objet} onChange={v => updateCC(c.id, { ...c, objet: v })} placeholder="Voiture, travaux…" /></Field>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <Field label="Montant initial"><Input value={c.montantInitial} onChange={v => updateCC(c.id, { ...c, montantInitial: v })} placeholder="0" suffix="€" /></Field>
-                          <Field label="Capital restant dû"><Input value={c.crd} onChange={v => updateCC(c.id, { ...c, crd: v })} placeholder="0" suffix="€" /></Field>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
-                          <Field label="Taux TAEG"><Input type="number" value={c.taeg} onChange={v => updateCC(c.id, { ...c, taeg: v })} placeholder="5.90" suffix="%" /></Field>
-                          <Field label="Mensualité"><Input value={c.mensualite} onChange={v => updateCC(c.id, { ...c, mensualite: v })} placeholder="0" suffix="€" /></Field>
-                          <Field label="Date de fin">
-                            <div className="space-y-1.5">
-                              <Input type="date" value={c.dateFin} onChange={v => updateCC(c.id, { ...c, dateFin: v })} />
-                              {moisRestants !== null && <p className="text-[11px] text-gray-400">Il vous reste <strong className="text-gray-600">{moisRestants} mois</strong></p>}
-                            </div>
-                          </Field>
-                        </div>
-                        <Field label="Emprunteur">
-                          <Chips options={isCouple ? [p1Label, p2Label, 'Les deux'] : [p1Label]} value={c.emprunteur} onChange={v => updateCC(c.id, { ...c, emprunteur: v as string })} />
+                        <Field label="Mensualité">
+                          <Input value={c.mensualite} onChange={v => updateCC(c.id, { ...c, mensualite: v })} placeholder="0" suffix="€" />
                         </Field>
-                      </CardWrap>
-                      </motion.div>
-                    )
-                  })}
+                      </div>
+                    </CardWrap>
+                    </motion.div>
+                  ))}
                   </AnimatePresence>
-                  <AddBtn onClick={addCC} label="Ajouter un crédit à la consommation" />
-                </div>
-              </>
-            )}
+                  <AddBtn onClick={addCC} label="Ajouter un crédit conso" />
 
-            {/* ── PRÊT ÉTUDIANT ─────────────────────────────────────────────── */}
-            {typesSelectionnes.includes('Prêt étudiant') && (
-              <>
-                <SectionDivider label="Prêt étudiant" />
-                <div className="space-y-3 mb-6">
                   <AnimatePresence>
-                  {state.pretsEtudiants.map(p => {
-                    const moisAvantRembours = monthsUntil(p.dateDebutRemboursement)
-                    return (
-                      <motion.div key={p.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
-                      <CardWrap title={p.etablissement || 'Prêt étudiant'} subtitle={p.crd ? `${fmt(parseNum(p.crd))} €` : undefined} onRemove={() => removePE(p.id)}>
-                        <div className="grid grid-cols-2 gap-4">
-                          <Field label="Établissement"><Input value={p.etablissement} onChange={v => updatePE(p.id, { ...p, etablissement: v })} placeholder="BPI France" /></Field>
-                          <Field label="Montant initial"><Input value={p.montantInitial} onChange={v => updatePE(p.id, { ...p, montantInitial: v })} placeholder="0" suffix="€" /></Field>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
-                          <Field label="Capital restant dû"><Input value={p.crd} onChange={v => updatePE(p.id, { ...p, crd: v })} placeholder="0" suffix="€" /></Field>
-                          <Field label="Taux"><Input type="number" value={p.taux} onChange={v => updatePE(p.id, { ...p, taux: v })} placeholder="1.50" suffix="%" /></Field>
-                          <Field label="Mensualité"><Input value={p.mensualite} onChange={v => updatePE(p.id, { ...p, mensualite: v })} placeholder="0" suffix="€" /></Field>
-                        </div>
-                        <Field label="En période de différé ?"><Toggle value={p.differe} onChange={v => updatePE(p.id, { ...p, differe: v })} /></Field>
-                        {p.differe && (
-                          <Field label="Date de début de remboursement">
-                            <div className="space-y-1.5">
-                              <Input type="date" value={p.dateDebutRemboursement} onChange={v => updatePE(p.id, { ...p, dateDebutRemboursement: v })} />
-                              {moisAvantRembours !== null && <p className="text-[11px] text-gray-400">Remboursement dans <strong className="text-gray-600">{moisAvantRembours} mois</strong></p>}
-                            </div>
-                          </Field>
-                        )}
-                        <Field label="Date de fin"><Input type="date" value={p.dateFin} onChange={v => updatePE(p.id, { ...p, dateFin: v })} /></Field>
-                        <Field label="Emprunteur"><Chips options={isCouple ? [p1Label, p2Label] : [p1Label]} value={p.emprunteur} onChange={v => updatePE(p.id, { ...p, emprunteur: v as string })} /></Field>
-                      </CardWrap>
-                      </motion.div>
-                    )
-                  })}
+                  {state.pretsEtudiants.map((p, idx) => (
+                    <motion.div key={p.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
+                    <CardWrap
+                      title={`Prêt étudiant ${state.pretsEtudiants.length > 1 ? idx + 1 : ''}`}
+                      subtitle={parseNum(p.crd) > 0 ? `${fmt(parseNum(p.crd))} €` : undefined}
+                      onRemove={() => removePE(p.id)}
+                    >
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Capital restant dû">
+                          <Input value={p.crd} onChange={v => updatePE(p.id, { ...p, crd: v })} placeholder="0" suffix="€" />
+                        </Field>
+                        <Field label="Mensualité">
+                          <Input value={p.mensualite} onChange={v => updatePE(p.id, { ...p, mensualite: v })} placeholder="0" suffix="€" />
+                        </Field>
+                      </div>
+                    </CardWrap>
+                    </motion.div>
+                  ))}
                   </AnimatePresence>
                   <AddBtn onClick={addPE} label="Ajouter un prêt étudiant" />
                 </div>
@@ -720,111 +459,72 @@ export default function Bloc3() {
             )}
 
             {/* ── DÉCOUVERT BANCAIRE ────────────────────────────────────────── */}
-            {typesSelectionnes.includes('Découvert bancaire') && (
+            {state.typesSelectionnes.includes('Découvert bancaire') && (
               <>
                 <SectionDivider label="Découvert bancaire" />
                 <div className="space-y-3 mb-6">
                   <AnimatePresence>
-                  {state.decouvertsBancaires.map(d => {
-                    const pctUtil = parseNum(d.montantAutorise) > 0 ? Math.round(parseNum(d.montantUtilise) / parseNum(d.montantAutorise) * 100) : 0
-                    return (
-                      <motion.div key={d.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
-                      <CardWrap title={d.etablissement || 'Découvert'} subtitle={d.montantUtilise ? `${fmt(parseNum(d.montantUtilise))} € utilisés` : undefined} onRemove={() => removeDB(d.id)}>
-                        <Field label="Établissement"><Input value={d.etablissement} onChange={v => updateDB(d.id, { ...d, etablissement: v })} placeholder="Crédit Agricole" /></Field>
-                        <div className="grid grid-cols-2 gap-4">
-                          <Field label="Découvert autorisé"><Input value={d.montantAutorise} onChange={v => updateDB(d.id, { ...d, montantAutorise: v })} placeholder="500" suffix="€" /></Field>
-                          <Field label="Montant utilisé actuellement">
-                            <div className="space-y-1.5">
-                              <Input value={d.montantUtilise} onChange={v => updateDB(d.id, { ...d, montantUtilise: v })} placeholder="0" suffix="€" />
-                              {d.montantAutorise && d.montantUtilise && <p className="text-[11px] text-gray-400">Utilisation : <strong className="text-gray-700">{pctUtil}%</strong></p>}
-                            </div>
-                          </Field>
-                        </div>
-                        <Field label="Taux d'agios"><Input type="number" value={d.tauxAgios} onChange={v => updateDB(d.id, { ...d, tauxAgios: v })} placeholder="14.00" suffix="%" /></Field>
-                        <Field label="Caractère">
-                          <Chips options={['Ponctuel', 'Structurel']} value={d.caractere} onChange={v => updateDB(d.id, { ...d, caractere: v as string })} />
-                        </Field>
-                        {d.caractere === 'Structurel' && (
-                          <InfoCard color="amber">Un découvert structurel peut indiquer un déséquilibre budgétaire. Ce point sera analysé dans votre bilan.</InfoCard>
-                        )}
-                        <Field label="Titulaire">
-                          <Chips options={isCouple ? [p1Label, p2Label, 'Joint'] : [p1Label]} value={d.titulaire} onChange={v => updateDB(d.id, { ...d, titulaire: v as string })} />
-                        </Field>
-                      </CardWrap>
-                      </motion.div>
-                    )
-                  })}
+                  {state.decouvertsBancaires.map((d, idx) => (
+                    <motion.div key={d.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
+                    <CardWrap
+                      title={`Découvert ${state.decouvertsBancaires.length > 1 ? idx + 1 : ''}`}
+                      subtitle={d.montantUtilise ? `${fmt(parseNum(d.montantUtilise))} € utilisés` : undefined}
+                      onRemove={() => removeDB(d.id)}
+                    >
+                      <Field label="Montant utilisé actuellement">
+                        <Input value={d.montantUtilise} onChange={v => updateDB(d.id, { ...d, montantUtilise: v })} placeholder="0" suffix="€" />
+                      </Field>
+                    </CardWrap>
+                    </motion.div>
+                  ))}
                   </AnimatePresence>
                   <AddBtn onClick={addDB} label="Ajouter un découvert" />
                 </div>
               </>
             )}
 
-            {/* ── DETTES FAMILIALES ─────────────────────────────────────────── */}
-            {typesSelectionnes.includes('Dettes familiales') && (
+            {/* ── DETTES FAMILIALES / AUTRES ────────────────────────────────── */}
+            {state.typesSelectionnes.includes('Dettes familiales / autres') && (
               <>
-                <SectionDivider label="Dettes familiales" />
+                <SectionDivider label="Dettes familiales / autres" />
                 <div className="space-y-3 mb-6">
                   <AnimatePresence>
-                  {state.dettesFamiliales.map(d => (
+                  {state.dettesFamiliales.map((d, idx) => (
                     <motion.div key={d.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
-                    <CardWrap title={d.creancier || 'Dette familiale'} subtitle={d.montantDu ? `${fmt(parseNum(d.montantDu))} €` : undefined} onRemove={() => removeDF(d.id)}>
-                      <Field label="Créancier">
-                        <Select value={d.creancier} onChange={v => updateDF(d.id, { ...d, creancier: v })}>
-                          <option value="">Sélectionnez…</option>
-                          {personnesConnues.map(p => <option key={p}>{p}</option>)}
-                          <option value="Autre personne">Autre personne</option>
-                        </Select>
-                      </Field>
-                      {d.creancier === 'Autre personne' && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <Field label="Prénom / Nom"><Input value={d.creancierLibre} onChange={v => updateDF(d.id, { ...d, creancierLibre: v })} placeholder="Prénom Nom" /></Field>
-                          <Field label="Lien de parenté"><Input value={d.lien} onChange={v => updateDF(d.id, { ...d, lien: v })} placeholder="Oncle, ami…" /></Field>
-                        </div>
-                      )}
-                      <Field label="Montant total dû"><Input value={d.montantDu} onChange={v => updateDF(d.id, { ...d, montantDu: v })} placeholder="0" suffix="€" /></Field>
-                      <Field label="Remboursement prévu ?"><Toggle value={d.remboursementPrevu} onChange={v => updateDF(d.id, { ...d, remboursementPrevu: v })} /></Field>
-                      {d.remboursementPrevu && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <Field label="Échéance"><Input type="date" value={d.echeance} onChange={v => updateDF(d.id, { ...d, echeance: v })} /></Field>
-                          <Field label="Mensualité estimée"><Input value={d.mensualite} onChange={v => updateDF(d.id, { ...d, mensualite: v })} placeholder="0" suffix="€" /></Field>
-                        </div>
-                      )}
-                      <Field label="Taux convenu" tooltip="Laissez à 0% si prêt sans intérêt">
-                        <Input type="number" value={d.taux} onChange={v => updateDF(d.id, { ...d, taux: v })} placeholder="0" suffix="%" />
-                      </Field>
-                      <Field label="Acte notarié ou reconnaissance de dette ?">
-                        <Toggle value={d.acteNotarie} onChange={v => updateDF(d.id, { ...d, acteNotarie: v })} />
-                      </Field>
-                      {!d.acteNotarie && parseNum(d.montantDu) > 0 && (
-                        <InfoCard color="amber">Sans document écrit, cette dette peut être difficile à faire valoir juridiquement.</InfoCard>
-                      )}
+                    <CardWrap
+                      title={`Dette familiale ${state.dettesFamiliales.length > 1 ? idx + 1 : ''}`}
+                      subtitle={d.montantDu ? `${fmt(parseNum(d.montantDu))} €` : undefined}
+                      onRemove={() => removeDF(d.id)}
+                    >
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Montant dû">
+                          <Input value={d.montantDu} onChange={v => updateDF(d.id, { ...d, montantDu: v })} placeholder="0" suffix="€" />
+                        </Field>
+                        <Field label="Mensualité (si existante)">
+                          <Input value={d.mensualite} onChange={v => updateDF(d.id, { ...d, mensualite: v })} placeholder="0" suffix="€" />
+                        </Field>
+                      </div>
                     </CardWrap>
                     </motion.div>
                   ))}
                   </AnimatePresence>
                   <AddBtn onClick={addDF} label="Ajouter une dette familiale" />
-                </div>
-              </>
-            )}
 
-            {/* ── AUTRE DETTE ───────────────────────────────────────────────── */}
-            {typesSelectionnes.includes('Autre') && (
-              <>
-                <SectionDivider label="Autre dette" />
-                <div className="space-y-3 mb-6">
                   <AnimatePresence>
-                  {state.autresDettes.map(d => (
+                  {state.autresDettes.map((d, idx) => (
                     <motion.div key={d.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}>
-                    <CardWrap title={d.description || 'Autre dette'} subtitle={d.montantDu ? `${fmt(parseNum(d.montantDu))} €` : undefined} onRemove={() => removeAD(d.id)}>
+                    <CardWrap
+                      title={`Autre dette ${state.autresDettes.length > 1 ? idx + 1 : ''}`}
+                      subtitle={d.montantDu ? `${fmt(parseNum(d.montantDu))} €` : undefined}
+                      onRemove={() => removeAD(d.id)}
+                    >
                       <div className="grid grid-cols-2 gap-4">
-                        <Field label="Description"><Input value={d.description} onChange={v => updateAD(d.id, { ...d, description: v })} placeholder="Décrivez la dette" /></Field>
-                        <Field label="Créancier (optionnel)"><Input value={d.creancier} onChange={v => updateAD(d.id, { ...d, creancier: v })} placeholder="Nom" /></Field>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4">
-                        <Field label="Montant dû"><Input value={d.montantDu} onChange={v => updateAD(d.id, { ...d, montantDu: v })} placeholder="0" suffix="€" /></Field>
-                        <Field label="Mensualité (optionnel)"><Input value={d.mensualite} onChange={v => updateAD(d.id, { ...d, mensualite: v })} placeholder="0" suffix="€" /></Field>
-                        <Field label="Échéance (optionnel)"><Input type="date" value={d.echeance} onChange={v => updateAD(d.id, { ...d, echeance: v })} /></Field>
+                        <Field label="Montant dû">
+                          <Input value={d.montantDu} onChange={v => updateAD(d.id, { ...d, montantDu: v })} placeholder="0" suffix="€" />
+                        </Field>
+                        <Field label="Mensualité (si existante)">
+                          <Input value={d.mensualite} onChange={v => updateAD(d.id, { ...d, mensualite: v })} placeholder="0" suffix="€" />
+                        </Field>
                       </div>
                     </CardWrap>
                     </motion.div>
@@ -836,40 +536,37 @@ export default function Bloc3() {
             )}
 
             {/* ══ SYNTHÈSE ══════════════════════════════════════════════════ */}
-            {totalDettes > 0 && !state.showSynthese && (
+            {totalDettesComplet > 0 && !state.showSynthese && (
               <button type="button" onClick={() => upd('showSynthese', true)}
                 className="w-full py-4 rounded-2xl bg-[#185FA5] text-white text-[14px] font-semibold hover:bg-[#0C447C] transition-colors shadow-[0_4px_14px_rgba(24,95,165,0.25)]">
                 Voir la synthèse →
               </button>
             )}
 
-            {state.showSynthese && totalDettes > 0 && (
+            {state.showSynthese && totalDettesComplet > 0 && (
               <div className="space-y-6 mt-2">
                 <div className="flex items-center gap-3">
                   <span className="text-[11px] font-bold uppercase tracking-widest text-[#185FA5] bg-[#E6F1FB] px-3 py-1 rounded-full">Synthèse Bloc 3</span>
                   <div className="flex-1 h-px bg-gray-100" />
                 </div>
 
-                {/* Row 1 — 4 métriques */}
+                {/* Row 1 — métriques */}
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Total dettes */}
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                     <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2">Total dettes</p>
-                    <p className="text-[22px] font-bold text-red-600">{fmt(totalDettes)} €</p>
+                    <p className="text-[22px] font-bold text-red-600">{fmt(totalDettesComplet)} €</p>
                   </div>
-                  {/* Mensualités */}
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                     <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2">Mensualités totales</p>
-                    <p className="text-[22px] font-bold text-gray-800">{fmt(totalMensualites)} €<span className="text-[14px] text-gray-400 font-normal">/mois</span></p>
-                    {mensualiteAssurance > 0 && <p className="text-[11px] text-gray-400 mt-1">dont {fmt(mensualiteAssurance)} € assurance</p>}
+                    <p className="text-[22px] font-bold text-gray-800">{fmt(totalMensualitesComplet)} €<span className="text-[14px] text-gray-400 font-normal">/mois</span></p>
                   </div>
-                  {/* Durée résiduelle */}
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                    <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2">Durée résiduelle moyenne</p>
-                    <p className="text-[22px] font-bold text-gray-800">{dureeMoyenne > 0 ? `${dureeMoyenne} an${dureeMoyenne > 1 ? 's' : ''}` : '—'}</p>
-                    <p className="text-[11px] text-gray-400 mt-1">Crédits immobiliers</p>
-                  </div>
-                  {/* Patrimoine net provisoire */}
+                  {dureeMoyenne > 0 && (
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                      <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2">Durée résiduelle moyenne</p>
+                      <p className="text-[22px] font-bold text-gray-800">{dureeMoyenne} an{dureeMoyenne > 1 ? 's' : ''}</p>
+                      <p className="text-[11px] text-gray-400 mt-1">Crédits immobiliers</p>
+                    </div>
+                  )}
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                     <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2">Patrimoine net provisoire</p>
                     <p className={`text-[22px] font-bold ${patrimoineNet >= 0 ? 'text-[#0F6E56]' : 'text-red-600'}`}>{patrimoineNet >= 0 ? '+' : ''}{fmt(patrimoineNet)} €</p>
@@ -877,7 +574,7 @@ export default function Bloc3() {
                   </div>
                 </div>
 
-                {/* Row 2 — Taux endettement */}
+                {/* Taux endettement */}
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-[13px] font-semibold text-gray-800">Ratio dette / actif brut</p>
@@ -886,7 +583,7 @@ export default function Bloc3() {
                       : tauxEndettementPatrimoine < 50 ? 'bg-amber-50 text-amber-700'
                       : 'bg-red-50 text-red-700'
                     }`}>
-                      Taux d'endettement : {tauxEndettementPatrimoine}%
+                      {tauxEndettementPatrimoine}%
                     </span>
                   </div>
                   <div className="relative h-5 bg-gray-100 rounded-full overflow-hidden">
@@ -902,7 +599,7 @@ export default function Bloc3() {
                   <p className="text-[11px] text-gray-400 mt-2">Le taux d'endettement réel sera calculé sur vos revenus une fois le Bloc 4 complété.</p>
                 </div>
 
-                {/* Row 3 — Barres par type */}
+                {/* Barres par type */}
                 {chartData.length > 0 && (
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                     <p className="text-[13px] font-semibold text-gray-800 mb-4">Détail par type de crédit</p>
@@ -924,7 +621,7 @@ export default function Bloc3() {
                           <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
                           <span className="text-[11px] text-gray-500">{d.name}</span>
                           <span className="text-[11px] font-semibold text-gray-700 ml-auto">{fmt(d.value)} €</span>
-                          <span className="text-[10px] text-gray-400">({Math.round(d.value / totalDettes * 100)}%)</span>
+                          <span className="text-[10px] text-gray-400">({Math.round(d.value / totalDettesComplet * 100)}%)</span>
                         </div>
                       ))}
                     </div>
