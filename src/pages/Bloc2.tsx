@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getNextBloc } from '../utils/navigation'
+import { getNextBloc, getPrevBloc, isLastBloc } from '../utils/navigation'
 import FadeIn from '../components/FadeIn'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1337,7 +1337,7 @@ export default function Bloc2() {
 
             <button type="button" onClick={() => navigate(getNextBloc(2))}
               className="w-full py-4 rounded-2xl bg-[#185FA5] text-white text-[14px] font-semibold hover:bg-[#0C447C] transition-colors shadow-[0_4px_14px_rgba(24,95,165,0.25)]">
-              Confirmer et passer au Bloc 3 — Passif & dettes →
+              {isLastBloc(2) ? 'Lancer l\'analyse →' : 'Suivant →'}
             </button>
           </div>
         )}
@@ -1361,12 +1361,12 @@ export default function Bloc2() {
 
       {/* Footer */}
       <div className="fixed bottom-0 left-[220px] right-0 bg-white/80 backdrop-blur-sm border-t border-gray-100 px-8 py-4 flex justify-between items-center z-30">
-        <button type="button" onClick={() => navigate('/bloc1')} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors">← Retour</button>
+        <button type="button" onClick={() => navigate(getPrevBloc(2))} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors">← Retour</button>
         <div className="flex items-center gap-3">
           {savedAt && <span className="text-[11px] text-gray-300 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />Brouillon enregistré · {savedAt}</span>}
           <button type="button" onClick={() => navigate(getNextBloc(2))}
             className="text-[13px] text-white px-6 py-2 rounded-lg bg-[#185FA5] hover:bg-[#0C447C] transition-colors shadow-[0_2px_8px_rgba(24,95,165,0.3)] font-medium">
-            Suivant →
+            {isLastBloc(2) ? 'Lancer l\'analyse →' : 'Suivant →'}
           </button>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getNextBloc } from '../utils/navigation'
+import { getNextBloc, isLastBloc } from '../utils/navigation'
 import FadeIn from '../components/FadeIn'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -616,7 +616,7 @@ export default function Bloc1() {
             transition={{ duration: 0.15 }}
             className="text-[13px] text-white px-6 py-2 rounded-lg bg-[#185FA5] hover:bg-[#0C447C] transition-colors shadow-[0_2px_8px_rgba(24,95,165,0.3)] font-medium"
           >
-            Suivant →
+            {isLastBloc(1) ? 'Lancer l\'analyse →' : 'Suivant →'}
           </motion.button>
         </div>
       </div>

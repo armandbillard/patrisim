@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { CheckCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import FadeIn from '../components/FadeIn'
+import { getPrevBloc } from '../utils/navigation'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1062,7 +1063,7 @@ export default function Bloc7() {
 
       {/* Footer */}
       <div className="fixed bottom-0 left-[220px] right-0 bg-white/80 backdrop-blur-sm border-t border-gray-100 px-8 py-4 flex justify-between items-center z-30">
-        <button type="button" onClick={() => navigate('/bloc6')} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors">← Retour</button>
+        <button type="button" onClick={() => navigate(getPrevBloc(7))} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors">← Retour</button>
         <div className="flex items-center gap-3">
           {savedAt && <span className="text-[11px] text-gray-300 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />Brouillon enregistré · {savedAt}</span>}
           <button type="button" onClick={() => upd('showModal', true)}

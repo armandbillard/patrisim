@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Upload, CheckCircle, AlertTriangle, X, ArrowDown, ArrowUp } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { getNextBloc } from '../utils/navigation'
+import { getNextBloc, getPrevBloc, isLastBloc } from '../utils/navigation'
 import FadeIn from '../components/FadeIn'
 import SyntheseButton from '../components/SyntheseButton'
 
@@ -611,8 +611,8 @@ export default function Bloc4() {
       {/* Footer sticky */}
       <SyntheseButton
         onSuivant={handleSuivant}
-        onRetour={() => navigate('/bloc3')}
-        labelSuivant="Suivant — Projets & retraite →"
+        onRetour={() => navigate(getPrevBloc(4))}
+        labelSuivant={isLastBloc(4) ? 'Lancer l\'analyse →' : 'Suivant →'}
         savedAt={savedAt}
         errors={errors}
         items={[

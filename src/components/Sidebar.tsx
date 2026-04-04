@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle, Lock } from 'lucide-react'
+import { CheckCircle, Lock, RotateCcw } from 'lucide-react'
 
 interface SidebarProps { currentStep: number }
 
@@ -36,9 +37,24 @@ const STEPS = [
   { n: 7, label: 'Succession', path: '/bloc7' },
 ]
 
+const STORAGE_KEYS = [
+  'patrisim_bloc0', 'patrisim_bloc1_mode', 'patrisim_bloc1_p1', 'patrisim_bloc1_p2',
+  'patrisim_bloc1_pro1', 'patrisim_bloc1_pro2', 'patrisim_bloc1_foyer',
+  'patrisim_bloc2', 'patrisim_bloc3', 'patrisim_bloc3_calc',
+  'patrisim_bloc4', 'patrisim_bloc5', 'patrisim_bloc6', 'patrisim_bloc7',
+  'patrisim_analyse',
+]
+
 export default function Sidebar({ currentStep }: SidebarProps) {
   const navigate = useNavigate()
   const blocsActifs = getBlocsActifs()
+  const [showResetModal, setShowResetModal] = useState(false)
+
+  const handleReset = () => {
+    STORAGE_KEYS.forEach(k => localStorage.removeItem(k))
+    setShowResetModal(false)
+    navigate('/start')
+  }
 
   const isDone = (n: number) => n < currentStep && blocsActifs.includes(n)
   const isActive = (n: number) => n === currentStep
@@ -46,6 +62,32 @@ export default function Sidebar({ currentStep }: SidebarProps) {
 
   return (
     <div className="w-[220px] bg-white border-r border-gray-100 flex flex-col fixed top-0 left-0 h-full z-40">
+
+      {/* Modal réinitialisation */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6 space-y-4">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+              <RotateCcw size={22} className="text-red-600" />
+            </div>
+            <h2 className="text-[16px] font-bold text-gray-900 text-center">Réinitialiser toutes les données ?</h2>
+            <p className="text-[13px] text-gray-500 text-center leading-relaxed">
+              Toutes vos réponses seront effacées et vous reviendrez à l'étape de démarrage.<br />
+              <strong className="text-red-600">Cette action est irréversible.</strong>
+            </p>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setShowResetModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-[13px] text-gray-500 hover:bg-gray-50 transition-colors font-medium">
+                Annuler
+              </button>
+              <button type="button" onClick={handleReset}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition-colors">
+                Tout effacer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Logo */}
       <div className="px-5 py-5 border-b border-gray-50">
         <button type="button" onClick={() => navigate('/start')}
@@ -100,6 +142,11 @@ export default function Sidebar({ currentStep }: SidebarProps) {
 
       {/* Footer */}
       <div className="px-4 py-4 border-t border-gray-50 space-y-2">
+        <button type="button" onClick={() => setShowResetModal(true)}
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-red-100 text-[11px] text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all font-medium">
+          <RotateCcw size={12} />
+          Réinitialiser mes données
+        </button>
         <div className="text-[10px] text-gray-400 text-center leading-relaxed px-1">
           Outil pédagogique · Patrimoine &lt; 500 000 €<br />
           Ne remplace pas un CGP agréé

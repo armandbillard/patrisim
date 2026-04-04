@@ -34,12 +34,6 @@ const PARCOURS = [
 export default function Landing() {
   const navigate = useNavigate()
 
-  // TODO: supprimer ce bouton avant mise en production
-  const handleDevDemo = () => {
-    localStorage.removeItem('patrisim_analyse')
-    localStorage.setItem('patrisim_dev_demo', 'true')
-    navigate('/analyse')
-  }
 
   return (
     <div className="min-h-screen bg-[#0A0F1E] text-white">
@@ -241,15 +235,6 @@ export default function Landing() {
           </button>
         </div>
       </section>
-
-      {/* TODO: supprimer avant prod — bouton démo développeur */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <button type="button" onClick={handleDevDemo}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 border border-gray-600 text-gray-300 text-[11px] font-mono hover:bg-gray-700 transition-colors opacity-70 hover:opacity-100">
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-          [DEV] Voir l'analyse sans IA
-        </button>
-      </div>
 
       {/* Footer */}
       <footer className="border-t border-white/5 py-8 px-8">

@@ -44,3 +44,9 @@ export function getPrevBloc(current: number): string {
   const prev = [...actifs].reverse().find(n => n < current)
   return prev !== undefined ? (BLOC_PATHS[prev] ?? '/start') : '/start'
 }
+
+/** Retourne true si `current` est le dernier bloc actif (le suivant sera l'analyse). */
+export function isLastBloc(current: number): boolean {
+  const actifs = getBlocsActifs()
+  return actifs.find(n => n > current) === undefined
+}

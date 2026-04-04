@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getNextBloc } from '../utils/navigation'
+import { getNextBloc, getPrevBloc, isLastBloc } from '../utils/navigation'
 import FadeIn from '../components/FadeIn'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts'
 
@@ -19,6 +19,11 @@ interface RetraitePersonne {
   patrimoineCouvrir: string
   aTransmission: boolean
   montantTransmission: string
+  perActif: boolean
+  perCapitalActuel: string
+  perVersementMensuel: string
+  perModeSortie: 'capital' | 'rente' | 'mixte'
+  perTmiRetraiteManuel: string
 }
 
 interface Projet {
@@ -47,11 +52,13 @@ interface Bloc5State {
   retraiteP2: RetraitePersonne
   aProjects: boolean
   projets: Projet[]
-  capaciteEpargne: string
+  capaciteEpargne: string  // conservé pour compatibilité localStorage, non utilisé pour calcul
   repartition: Repartition
   effortSupp: number
   horizonInvest: string
   showSynthese: boolean
+  capitalFinancierSaisi: string  // actif financier simplifié si Bloc2 vide
+  capitalAVSaisi: string         // dont assurance-vie (optionnel)
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -67,6 +74,11 @@ const defaultRetraite = (): RetraitePersonne => ({
   patrimoineCouvrir: '',
   aTransmission: false,
   montantTransmission: '',
+  perActif: false,
+  perCapitalActuel: '',
+  perVersementMensuel: '',
+  perModeSortie: 'capital',
+  perTmiRetraiteManuel: '',
 })
 
 const defaultProjet = (): Projet => ({
@@ -88,6 +100,8 @@ const defaultState = (): Bloc5State => ({
   effortSupp: 0,
   horizonInvest: '',
   showSynthese: false,
+  capitalFinancierSaisi: '',
+  capitalAVSaisi: '',
 })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -117,6 +131,78 @@ function capitalFuteur(mensuel: number, taux: number, annees: number): number {
   const r = taux / 100 / 12
   const n = annees * 12
   return mensuel * ((Math.pow(1 + r, n) - 1) / r)
+}
+
+// TMI barème 2025 à partir du revenu net annuel imposable (1 foyer, 1 part)
+function tmiFromRevenuAnnuel(revenuAnnuelNet: number): number {
+  const ri = revenuAnnuelNet * 0.9 // abattement 10% pensions
+  if (ri <= 11294) return 0
+  if (ri <= 28797) return 11
+  if (ri <= 82341) return 30
+  if (ri <= 177106) return 41
+  return 45
+}
+
+interface PerSimResult {
+  capitalProjecte: number
+  versementsTotal: number
+  gains: number
+  economieFiscaleEntree: number
+  tmiSortieEffectif: number
+  // capital mode
+  impotCapital: number
+  netCapital: number
+  // rente mode
+  renteBruteMensuelle: number
+  renteNetteMensuelle: number
+}
+
+function simulerPER(
+  capitalActuel: number,
+  versementMensuel: number,
+  annees: number,
+  ageRetraite: number,
+  tmiEntree: number,
+  tmiSortie: number,
+  mode: 'capital' | 'rente' | 'mixte'
+): PerSimResult {
+  const r = 0.04 / 12
+  const n = annees * 12
+  const capitalProjecte = Math.round(
+    capitalActuel * Math.pow(1.04, annees) +
+    (versementMensuel > 0 ? versementMensuel * ((Math.pow(1 + r, n) - 1) / r) : 0)
+  )
+  const versementsTotal = Math.round(capitalActuel + versementMensuel * 12 * annees)
+  const gains = Math.max(0, capitalProjecte - versementsTotal)
+
+  const economieFiscaleEntree = Math.round(versementMensuel * 12 * annees * tmiEntree / 100)
+
+  // Capital mode (versements déduits → IR au TMI sortie + gains → PFU 30%)
+  const impotVersements = Math.round(versementsTotal * tmiSortie / 100)
+  const impotGains = Math.round(gains * 0.30)
+  const impotCapital = impotVersements + impotGains
+  const netCapital = Math.round(capitalProjecte - impotCapital)
+
+  // Rente mode — taux de conversion ~4.5% + fraction imposable
+  const tauxConversion = 0.045
+  const fractionImp = ageRetraite >= 70 ? 0.30 : ageRetraite >= 60 ? 0.40 : ageRetraite >= 50 ? 0.50 : 0.70
+  const baseCapital = mode === 'mixte' ? capitalProjecte / 2 : capitalProjecte
+  const renteBruteAnnuelle = baseCapital * tauxConversion
+  const psRente = Math.round(renteBruteAnnuelle * fractionImp * 0.172)
+  const irRente = Math.round(renteBruteAnnuelle * fractionImp * 0.9 * tmiSortie / 100)
+  const renteNetteAnnuelle = renteBruteAnnuelle - psRente - irRente
+
+  return {
+    capitalProjecte,
+    versementsTotal,
+    gains,
+    economieFiscaleEntree,
+    tmiSortieEffectif: tmiSortie,
+    impotCapital: mode === 'mixte' ? Math.round(impotCapital / 2) : impotCapital,
+    netCapital: mode === 'mixte' ? Math.round(capitalProjecte / 2 - impotCapital / 2) : netCapital,
+    renteBruteMensuelle: Math.round(renteBruteAnnuelle / 12),
+    renteNetteMensuelle: Math.round(renteNetteAnnuelle / 12),
+  }
 }
 
 // ─── Base UI ──────────────────────────────────────────────────────────────────
@@ -220,8 +306,9 @@ function PersonneBadge({ label, isP2 }: { label: string; isP2?: boolean }) {
 
 // ─── RetraiteCard ─────────────────────────────────────────────────────────────
 
-function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusMensuel, errorAge, isRapide }: {
+function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusMensuel, errorAge, isRapide, tmiEntree }: {
   retraite: RetraitePersonne; onChange: (r: RetraitePersonne) => void
+  tmiEntree?: number
   label: string; isP2?: boolean; dateNaissance?: string; revenusMensuel: number; errorAge?: string; isRapide?: boolean
 }) {
   const upd = <K extends keyof RetraitePersonne>(k: K, v: RetraitePersonne[K]) => onChange({ ...retraite, [k]: v })
@@ -353,6 +440,115 @@ function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusM
           <Input value={retraite.montantTransmission} onChange={v => upd('montantTransmission', v)} placeholder="200 000" suffix="€" />
         </Field>
       )}
+
+      {/* ── Simulation PER — complet uniquement ─────────────────────────── */}
+      {!isRapide && (() => {
+        const annees = annesAvantRetraite ?? 20
+        const perCapAct = parseNum(retraite.perCapitalActuel)
+        const perVers = parseNum(retraite.perVersementMensuel)
+        const tmiAutoR = tmiFromRevenuAnnuel(pensionEffective * 12)
+        const tmiSortie = parseNum(retraite.perTmiRetraiteManuel) || tmiAutoR
+        const hasPer = perCapAct > 0 || perVers > 0
+        const sim = hasPer ? simulerPER(perCapAct, perVers, annees, retraite.ageDepartSouhaite, tmiEntree ?? 0, tmiSortie, retraite.perModeSortie) : null
+
+        return (
+          <div className="pt-4 border-t border-gray-100 space-y-4">
+            <p className="text-[12px] font-bold text-gray-700 uppercase tracking-wider">Plan d'Épargne Retraite (PER)</p>
+            <Field label="Avez-vous un PER ?">
+              <Toggle value={retraite.perActif} onChange={v => upd('perActif', v)} />
+            </Field>
+
+            {retraite.perActif && (
+              <div className="space-y-4 pl-2 border-l-2 border-[#E6F1FB]">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Capital PER actuel">
+                    <Input value={retraite.perCapitalActuel} onChange={v => upd('perCapitalActuel', v)} placeholder="0" suffix="€" />
+                  </Field>
+                  <Field label="Versements mensuels">
+                    <Input value={retraite.perVersementMensuel} onChange={v => upd('perVersementMensuel', v)} placeholder="200" suffix="€/mois" />
+                  </Field>
+                </div>
+
+                <Field label="Mode de sortie prévu">
+                  <Chips
+                    options={['Capital', 'Rente', 'Mixte (50/50)']}
+                    value={retraite.perModeSortie === 'capital' ? 'Capital' : retraite.perModeSortie === 'rente' ? 'Rente' : 'Mixte (50/50)'}
+                    onChange={v => upd('perModeSortie', v === 'Capital' ? 'capital' : v === 'Rente' ? 'rente' : 'mixte')}
+                    small
+                  />
+                  <div className="mt-2 text-[10px] text-gray-400 space-y-0.5">
+                    {retraite.perModeSortie === 'capital' && <p>Versements (déduits) → imposés à votre TMI de retraite · Gains → PFU 30%</p>}
+                    {retraite.perModeSortie === 'rente' && <p>Rente viagère imposée à l'IR sur une fraction selon votre âge + prélèvements sociaux 17.2%</p>}
+                    {retraite.perModeSortie === 'mixte' && <p>Moitié en capital, moitié en rente — fiscalité mixte appliquée à chaque part</p>}
+                  </div>
+                </Field>
+
+                <Field label="TMI estimée à la retraite" tooltip="Tranche marginale d'imposition au moment de la sortie du PER, calculée sur votre pension estimée">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2">
+                      <span className="text-[11px] text-gray-500">Auto-calculé :</span>
+                      <span className="text-[13px] font-bold text-[#185FA5]">{tmiAutoR}%</span>
+                      <span className="text-[10px] text-gray-400">selon pension estimée {fmt(pensionEffective)} €/mois</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-gray-500 flex-shrink-0">Ajuster :</span>
+                      <div className="w-24">
+                        <Input value={retraite.perTmiRetraiteManuel} onChange={v => upd('perTmiRetraiteManuel', v)} placeholder={String(tmiAutoR)} suffix="%" />
+                      </div>
+                      {retraite.perTmiRetraiteManuel && <span className="text-[10px] text-amber-600">TMI personnalisée active</span>}
+                    </div>
+                  </div>
+                </Field>
+
+                {/* Résultats simulation */}
+                {sim && (
+                  <div className="bg-[#0A0F1E]/3 rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="bg-[#185FA5] px-4 py-2">
+                      <p className="text-[11px] font-bold text-white uppercase tracking-wider">Simulation fiscalité sortie PER</p>
+                    </div>
+                    <div className="px-4 py-3 space-y-2">
+                      {[
+                        { label: 'Capital PER projeté (4%/an)', value: `${fmt(sim.capitalProjecte)} €`, bold: true },
+                        { label: 'dont versements investis', value: `${fmt(sim.versementsTotal)} €`, sub: true },
+                        { label: 'dont gains accumulés', value: `${fmt(sim.gains)} €`, sub: true },
+                        ...(tmiEntree ?? 0) > 0 ? [{ label: `Économie fiscale à l'entrée (TMI ${tmiEntree}%)`, value: `~${fmt(sim.economieFiscaleEntree)} €`, color: 'text-[#085041]' }] : [],
+                      ].map(({ label: lbl, value, bold, sub, color }) => (
+                        <div key={lbl} className={`flex justify-between ${sub ? 'pl-3' : ''}`}>
+                          <span className={`text-[11px] ${sub ? 'text-gray-400' : 'text-gray-600'}`}>{lbl}</span>
+                          <span className={`text-[11px] font-semibold ${color || (bold ? 'text-gray-900' : 'text-gray-700')}`}>{value}</span>
+                        </div>
+                      ))}
+                      <div className="border-t border-gray-200 pt-2 mt-1 space-y-1.5">
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">À la sortie (TMI {tmiSortie}%)</p>
+                        {(retraite.perModeSortie === 'capital' || retraite.perModeSortie === 'mixte') && <>
+                          <div className="flex justify-between">
+                            <span className="text-[11px] text-gray-600">{retraite.perModeSortie === 'mixte' ? 'Impôt (½ capital)' : 'Impôt total à la sortie'}</span>
+                            <span className="text-[11px] font-semibold text-red-600">−{fmt(sim.impotCapital)} €</span>
+                          </div>
+                          <div className="flex justify-between bg-[#E1F5EE] rounded-lg px-2 py-1.5">
+                            <span className="text-[11px] font-semibold text-[#085041]">{retraite.perModeSortie === 'mixte' ? 'Net capital (½)' : 'Capital net d\'impôt'}</span>
+                            <span className="text-[13px] font-bold text-[#085041]">{fmt(sim.netCapital)} €</span>
+                          </div>
+                        </>}
+                        {(retraite.perModeSortie === 'rente' || retraite.perModeSortie === 'mixte') && <>
+                          <div className="flex justify-between">
+                            <span className="text-[11px] text-gray-600">{retraite.perModeSortie === 'mixte' ? 'Rente brute (½ capital)' : 'Rente brute mensuelle'}</span>
+                            <span className="text-[11px] font-semibold text-gray-700">{fmt(sim.renteBruteMensuelle)} €/mois</span>
+                          </div>
+                          <div className="flex justify-between bg-[#E1F5EE] rounded-lg px-2 py-1.5">
+                            <span className="text-[11px] font-semibold text-[#085041]">Rente nette d'impôt</span>
+                            <span className="text-[13px] font-bold text-[#085041]">{fmt(sim.renteNetteMensuelle)} €/mois</span>
+                          </div>
+                        </>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -471,20 +667,19 @@ export default function Bloc5() {
     depenses?: { id: string; montant: string }[]
     aPension?: boolean
     pensionMontant?: string
+    fiscal?: { tmi?: number }
+    dcas?: { actif: string; montantMensuel: string }[]
   }>('patrisim_bloc4', {})
+  const tmiEntree = bloc4.fiscal?.tmi ?? 0
   const revenuP1Mensuel = parseNum(bloc4.p1Pro?.salaire || '0') || parseNum(bloc4.p1Pro?.remunNette || '0') / 12
   const revenuP2Mensuel = isCouple ? (parseNum(bloc4.p2Pro?.salaire || '0') || parseNum(bloc4.p2Pro?.remunNette || '0') / 12) : 0
 
+  const bloc2 = loadFromStorage<{ totalFinancier?: number; avs?: { valeurRachat?: string }[] }>('patrisim_bloc2', {})
+  const capitalBloc2 = bloc2.totalFinancier || 0
+  const hasBloc2Financier = capitalBloc2 > 0
+
   const [state, setState] = useState<Bloc5State>(() => {
     const s = loadFromStorage('patrisim_bloc5', defaultState())
-    // Pré-remplir capacité depuis Bloc 4
-    if (!s.capaciteEpargne) {
-      const revTotaux = revenuP1Mensuel + revenuP2Mensuel
-      const charges = (bloc4.depenses || []).reduce((a, d) => a + parseNum(d.montant), 0)
-        + (bloc4.aPension ? parseNum(bloc4.pensionMontant || '0') : 0)
-      const cap = Math.max(0, revTotaux - charges)
-      if (cap > 0) s.capaciteEpargne = String(Math.round(cap))
-    }
     // Pré-remplir revenus cibles (75% revenus actuels)
     if (s.retraiteP1.revenusCibles === 0 && revenuP1Mensuel > 0) {
       s.retraiteP1 = { ...s.retraiteP1, revenusCibles: Math.round(revenuP1Mensuel * 0.75) }
@@ -519,10 +714,19 @@ export default function Bloc5() {
     ? Math.round((parseNum(state.retraiteP2.pensionBase) + (state.retraiteP2.aComplementaire ? parseNum(state.retraiteP2.pensionComplementaire) : 0)) * 0.83)
     : Math.round(revenuP2Mensuel * 0.5)) : 0
 
-  const capacite = parseNum(state.capaciteEpargne)
+  // Capacité calculée depuis Bloc 4 (non stockée, toujours à jour)
+  const revenusTotaux = revenuP1Mensuel + revenuP2Mensuel
+  const depensesTotal4 = (bloc4.depenses || []).reduce((a, d) => a + parseNum(d.montant), 0)
+    + (bloc4.aPension ? parseNum(bloc4.pensionMontant || '0') : 0)
+  const dcaTotal4 = (bloc4.dcas || []).reduce((a, d) => a + parseNum(d.montantMensuel), 0)
+  const capacite = Math.max(0, revenusTotaux - depensesTotal4)
+
+  // Capital initial (Bloc2 si rempli, sinon saisie simplifiée Bloc5)
+  const capitalInitial = hasBloc2Financier ? capitalBloc2 : parseNum(state.capitalFinancierSaisi)
+
   const totalEpargne = capacite + state.effortSupp
   const annees = annesAvantP1 ?? 20
-  const capitalProjecte = capitalFuteur(totalEpargne, 4, annees)
+  const capitalProjecte = Math.round(capitalInitial * Math.pow(1.04, annees) + capitalFuteur(totalEpargne, 4, annees))
 
   const budgetCT = state.projets.filter(p => p.horizon === 'Court terme (0–3 ans)').reduce((a, p) => a + parseNum(p.budgetMode === 'precis' ? p.montant : p.montantMax), 0)
   const budgetMT = state.projets.filter(p => p.horizon === 'Moyen terme (3–8 ans)').reduce((a, p) => a + parseNum(p.budgetMode === 'precis' ? p.montant : p.montantMax), 0)
@@ -538,10 +742,10 @@ export default function Bloc5() {
     const today = new Date().getFullYear()
     const retraiteAn = today + (annesAvantP1 ?? 20)
     const espVie = retraiteAn + 25
-    let capital = 0
+    let capital = capitalInitial  // part du capital existant
     for (let year = today; year <= espVie; year++) {
       if (year < retraiteAn) {
-        capital += totalEpargne * 12 * 1.04
+        capital = capital * 1.04 + totalEpargne * 12
       } else {
         const deficit = Math.max(0, (state.retraiteP1.revenusCibles - pensionNettP1 + (isCouple ? state.retraiteP2.revenusCibles - pensionNettP2 : 0)))
         capital = Math.max(0, capital - deficit * 12)
@@ -593,16 +797,16 @@ export default function Bloc5() {
           <div className="grid grid-cols-2 gap-4 mb-8">
             <RetraiteCard retraite={state.retraiteP1} onChange={r => upd('retraiteP1', r)}
               label={p1Label} isP2={false} dateNaissance={p1Data.dateNaissance}
-              revenusMensuel={revenuP1Mensuel} errorAge={errors.revenusCiblesP1} isRapide={isRapide} />
+              revenusMensuel={revenuP1Mensuel} errorAge={errors.revenusCiblesP1} isRapide={isRapide} tmiEntree={tmiEntree} />
             <RetraiteCard retraite={state.retraiteP2} onChange={r => upd('retraiteP2', r)}
               label={p2Label} isP2 dateNaissance={p2Data.dateNaissance}
-              revenusMensuel={revenuP2Mensuel} errorAge={errors.revenusCiblesP2} isRapide={isRapide} />
+              revenusMensuel={revenuP2Mensuel} errorAge={errors.revenusCiblesP2} isRapide={isRapide} tmiEntree={tmiEntree} />
           </div>
         ) : (
           <div className="mb-8">
             <RetraiteCard retraite={state.retraiteP1} onChange={r => upd('retraiteP1', r)}
               label={p1Label} isP2={false} dateNaissance={p1Data.dateNaissance}
-              revenusMensuel={revenuP1Mensuel} errorAge={errors.revenusCiblesP1} isRapide={isRapide} />
+              revenusMensuel={revenuP1Mensuel} errorAge={errors.revenusCiblesP1} isRapide={isRapide} tmiEntree={tmiEntree} />
           </div>
         )}
         </FadeIn>
@@ -658,17 +862,76 @@ export default function Bloc5() {
           </FadeIn>
         )}
 
+        {/* ══ B.5 — ACTIF EXISTANT (si Bloc 2 non rempli) ════════════════ */}
+        {!hasBloc2Financier && (
+          <FadeIn delay={isRapide ? 0.04 : 0.12}>
+          <SectionTitle>Actif financier existant</SectionTitle>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4 mb-8">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[12px] text-amber-800">
+              Bloc 2 non rempli — renseignez votre capital financier pour une projection retraite cohérente.
+              Vous pouvez le compléter en détail dans le <strong>Bloc 2</strong>.
+            </div>
+            <Field label="Capital financier total estimé" tooltip="Livrets, PEA, CTO, PER, assurance-vie, épargne salariale…">
+              <Input value={state.capitalFinancierSaisi} onChange={v => upd('capitalFinancierSaisi', v)} placeholder="50 000" suffix="€" />
+            </Field>
+            {parseNum(state.capitalFinancierSaisi) > 0 && (
+              <Field label="Dont assurance-vie (optionnel)">
+                <Input value={state.capitalAVSaisi} onChange={v => upd('capitalAVSaisi', v)} placeholder="0" suffix="€" />
+              </Field>
+            )}
+            {parseNum(state.capitalFinancierSaisi) > 0 && (
+              <div className="bg-[#E6F1FB] rounded-xl px-4 py-3 text-[12px] text-[#0C447C]">
+                Capital de <strong>{fmt(parseNum(state.capitalFinancierSaisi))} €</strong> intégré dans la projection retraite
+                · à 4%/an sur {annees} ans → <strong>{fmt(Math.round(parseNum(state.capitalFinancierSaisi) * Math.pow(1.04, annees)))} €</strong>
+              </div>
+            )}
+          </div>
+          </FadeIn>
+        )}
+        {hasBloc2Financier && (
+          <FadeIn delay={isRapide ? 0.04 : 0.12}>
+          <div className="bg-[#E1F5EE] border border-[#0F6E56]/20 rounded-2xl px-5 py-3 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-[12px] font-semibold text-[#085041]">Capital financier importé depuis Bloc 2</p>
+              <p className="text-[11px] text-[#085041]/70 mt-0.5">Intégré dans la projection retraite · 4%/an sur {annees} ans</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[18px] font-bold text-[#085041]">{fmt(capitalBloc2)} €</p>
+              <p className="text-[11px] text-[#085041]/70">→ {fmt(Math.round(capitalBloc2 * Math.pow(1.04, annees)))} € à la retraite</p>
+            </div>
+          </div>
+          </FadeIn>
+        )}
+
         {/* ══ C — ÉPARGNE & EFFORT FUTUR ═══════════════════════════════════ */}
         <FadeIn delay={isRapide ? 0.08 : 0.16}>
         <SectionTitle>C — Épargne & effort futur</SectionTitle>
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5 mb-8">
 
-          <Field label="Capacité d'épargne mensuelle actuelle">
-            <div className="space-y-1.5">
-              <Input value={state.capaciteEpargne} onChange={v => upd('capaciteEpargne', v)} placeholder="500" suffix="€/mois" />
-              <p className="text-[11px] text-gray-400">Basé sur vos revenus et charges déclarés en Bloc 4</p>
+          {/* Capacité calculée automatiquement */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <label className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">Capacité d'épargne mensuelle</label>
+              <span className="text-[9px] bg-[#E1F5EE] text-[#085041] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">Calculé auto</span>
             </div>
-          </Field>
+            {revenusTotaux > 0 ? (
+              <div className="space-y-2">
+                <div className={`flex items-center justify-between rounded-xl px-4 py-3 ${capacite > 0 ? 'bg-[#E6F1FB]' : 'bg-red-50'}`}>
+                  <span className="text-[13px] text-gray-600">Revenus − Charges fixes</span>
+                  <span className={`text-[18px] font-bold ${capacite > 0 ? 'text-[#185FA5]' : 'text-red-600'}`}>{capacite > 0 ? '+' : ''}{fmt(capacite)} €/mois</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-gray-400 px-1">
+                  <span>Revenus nets : <strong className="text-gray-600">{fmt(revenusTotaux)} €</strong></span>
+                  <span>Charges : <strong className="text-gray-600">−{fmt(depensesTotal4)} €</strong></span>
+                  {dcaTotal4 > 0 && <span className="text-[#085041]">dont DCA : <strong>{fmt(dcaTotal4)} €</strong></span>}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[12px] text-amber-700">
+                Complétez le <strong>Bloc 4</strong> (revenus et charges) pour le calcul automatique.
+              </div>
+            )}
+          </div>
 
           {/* Répartition de l'épargne — complet uniquement */}
           {!isRapide && (
@@ -771,7 +1034,10 @@ export default function Bloc5() {
                     { label: 'Pension estimée', value: `${fmt(pension)} €/mois` },
                     { label: 'Objectif', value: `${fmt(cibles)} €/mois` },
                     { label: 'Déficit à couvrir', value: `${fmt(Math.max(0, cibles - pension))} €/mois` },
-                    ...(!isRapide ? [{ label: 'Capital projeté', value: `${fmt(capitalProjecte)} €` }] : []),
+                    ...(!isRapide ? [
+                      { label: 'Capital projeté', value: `${fmt(capitalProjecte)} €` },
+                      ...(capitalInitial > 0 ? [{ label: 'dont capital existant', value: `${fmt(capitalInitial)} €` }] : []),
+                    ] : []),
                   ].map(({ label: lbl, value }) => (
                     <div key={lbl} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
                       <span className="text-[12px] text-gray-400">{lbl}</span>
@@ -827,7 +1093,7 @@ export default function Bloc5() {
 
             <button type="button" onClick={() => navigate(getNextBloc(5))}
               className="w-full py-4 rounded-2xl bg-[#185FA5] text-white text-[14px] font-semibold hover:bg-[#0C447C] transition-colors shadow-[0_4px_14px_rgba(24,95,165,0.25)]">
-              Confirmer et passer au Bloc 6 — Profil investisseur →
+              {isLastBloc(5) ? 'Lancer l\'analyse →' : 'Suivant →'}
             </button>
           </div>
         )}
@@ -859,12 +1125,12 @@ export default function Bloc5() {
 
       {/* Footer */}
       <div className="fixed bottom-0 left-[220px] right-0 bg-white/80 backdrop-blur-sm border-t border-gray-100 px-8 py-4 flex justify-between items-center z-30">
-        <button type="button" onClick={() => navigate('/bloc4')} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors">← Retour</button>
+        <button type="button" onClick={() => navigate(getPrevBloc(5))} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors">← Retour</button>
         <div className="flex items-center gap-3">
           {savedAt && <span className="text-[11px] text-gray-300 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />Brouillon enregistré · {savedAt}</span>}
           <button type="button" onClick={handleSuivant}
             className="text-[13px] text-white px-6 py-2 rounded-lg bg-[#185FA5] hover:bg-[#0C447C] transition-colors shadow-[0_2px_8px_rgba(24,95,165,0.3)] font-medium">
-            Suivant →
+            {isLastBloc(5) ? 'Lancer l\'analyse →' : 'Suivant →'}
           </button>
         </div>
       </div>
