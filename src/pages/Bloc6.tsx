@@ -16,18 +16,12 @@ interface ConnaissanceFinanciere {
   produits: string[]
 }
 
-interface RisquePlacement {
-  id: string; type: string; nom: string; risque: string
-}
-
 interface Bloc6State {
   mifidDone: boolean
   reponses: MifidReponses
   // Connaissance financière
   cf1: ConnaissanceFinanciere
   cf2: ConnaissanceFinanciere
-  // Risques placements
-  risquesPlacement: RisquePlacement[]
   // Convictions
   aConvictions: boolean | null
   universInvest: string[]
@@ -47,11 +41,15 @@ function loadLS<T extends object>(key:string, fb:T):T {
   try{const r=localStorage.getItem(key);if(!r)return fb;return{...fb,...JSON.parse(r)}}catch{return fb}
 }
 
-function getProfilMifid(score:number) {
-  if(score<=10) return {label:'Défensif',   color:'#185FA5', bg:'#E6F1FB', text:'#0C447C'}
-  if(score<=14) return {label:'Équilibré',  color:'#0F6E56', bg:'#E1F5EE', text:'#085041'}
-  if(score<=17) return {label:'Dynamique',  color:'#D97706', bg:'#FEF3C7', text:'#92400E'}
-  return           {label:'Offensif',       color:'#DC2626', bg:'#FEF2F2', text:'#991B1B'}
+function getProfilMifid(score:number, maxScore: number = 21) {
+  // Seuils proportionnels selon le nombre de questions
+  const s1 = Math.round(10 / 21 * maxScore)
+  const s2 = Math.round(14 / 21 * maxScore)
+  const s3 = Math.round(17 / 21 * maxScore)
+  if(score<=s1) return {label:'Défensif',   color:'#185FA5', bg:'#E6F1FB', text:'#0C447C'}
+  if(score<=s2) return {label:'Équilibré',  color:'#0F6E56', bg:'#E1F5EE', text:'#085041'}
+  if(score<=s3) return {label:'Dynamique',  color:'#D97706', bg:'#FEF3C7', text:'#92400E'}
+  return          {label:'Offensif',        color:'#DC2626', bg:'#FEF2F2', text:'#991B1B'}
 }
 
 const defaultCF = (): ConnaissanceFinanciere => ({ niveauGeneral: '', produits: [] })
@@ -60,7 +58,6 @@ const defaultState = (): Bloc6State => ({
   mifidDone: false,
   reponses: {q1:0,q2:0,q3:0,q4:0,q5:0,q6:0,q7:0},
   cf1: defaultCF(), cf2: defaultCF(),
-  risquesPlacement: [],
   aConvictions: null,
   universInvest: [], prefGeo: '', secteursPriv: [], secteursExcl: [], prefESG: '',
   liquiditePct: 20, suiviFrequence: '', modeConseil: '',
@@ -186,18 +183,6 @@ export default function Bloc6() {
   const p1Label = p1Data.prenom?.trim() || 'Personne 1'
   const p2Label = p2Data.prenom?.trim() || 'Personne 2'
 
-  // Lecture Bloc 2 — placements pour risques
-  const bloc2 = loadLS<{
-    peas?: { id?: string; etablissement?: string }[]
-    ctos?: { id?: string; etablissement?: string }[]
-    avs?: { id?: string; nom?: string; compagnie?: string }[]
-  }>('patrisim_bloc2', {})
-  const allPlacements: RisquePlacement[] = [
-    ...(bloc2.peas || []).map(p => ({ id: p.id || '', type: 'PEA', nom: p.etablissement || 'PEA', risque: '' })),
-    ...(bloc2.ctos || []).map(c => ({ id: c.id || '', type: 'CTO', nom: c.etablissement || 'CTO', risque: '' })),
-    ...(bloc2.avs  || []).map(av => ({ id: av.id || '', type: 'AV',  nom: av.nom || av.compagnie || 'Assurance-vie', risque: '' })),
-  ].filter(p => p.id)
-
   const [state, setState] = useState<Bloc6State>(() => loadLS('patrisim_bloc6', defaultState()))
   const [savedAt, setSavedAt] = useState('')
   const [errors, setErrors] = useState<string[]>([])
@@ -207,22 +192,25 @@ export default function Bloc6() {
   const upd = useCallback(<K extends keyof Bloc6State>(k:K, v:Bloc6State[K]) =>
     setState(s => ({...s, [k]: v})), [])
 
-  const getRisque = (id: string) => state.risquesPlacement.find(r => r.id === id)?.risque || ''
-  const setRisque = (id: string, type: string, nom: string, risque: string) =>
-    upd('risquesPlacement', [...state.risquesPlacement.filter(r => r.id !== id), { id, type, nom, risque }])
-
   useEffect(() => {
     localStorage.setItem('patrisim_bloc6', JSON.stringify(state))
     setSavedAt(new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}))
   }, [state])
 
-  const score = Object.values(state.reponses).reduce((a,b) => a+b, 0)
-  const profil = getProfilMifid(score)
-  const allAnswered = MIFID_QUESTIONS.every(q => state.reponses[q.id as keyof MifidReponses] > 0)
+  // Questions filtrées selon l'objectif
+  const isShortMifid = objectifPrincipal === 'retraite' || objectifPrincipal === 'succession'
+  const QUESTIONS_FILTREES = isShortMifid
+    ? MIFID_QUESTIONS.filter(q => ['q1','q2','q3','q5','q7'].includes(q.id))
+    : MIFID_QUESTIONS
+  const MAX_SCORE = QUESTIONS_FILTREES.length * 3
+
+  const score = QUESTIONS_FILTREES.reduce((a, q) => a + (state.reponses[q.id as keyof MifidReponses] || 0), 0)
+  const profil = getProfilMifid(score, MAX_SCORE)
+  const allAnswered = QUESTIONS_FILTREES.every(q => state.reponses[q.id as keyof MifidReponses] > 0)
 
   const handleReponse = (qId: string, pts: number) => {
     upd('reponses', {...state.reponses, [qId]: pts})
-    if (currentQ < MIFID_QUESTIONS.length - 1) {
+    if (currentQ < QUESTIONS_FILTREES.length - 1) {
       setTimeout(() => setCurrentQ(c => c + 1), 300)
     } else {
       setTimeout(() => upd('mifidDone', true), 300)
@@ -231,7 +219,7 @@ export default function Bloc6() {
 
   const handleSuivant = () => {
     const e: string[] = []
-    if (!allAnswered) e.push('Répondez aux 7 questions MiFID II')
+    if (!allAnswered) e.push(`Répondez aux ${QUESTIONS_FILTREES.length} questions MiFID II`)
     if (e.length > 0) { setErrors(e); return }
     setToast(true)
     setTimeout(() => navigate(getNextBloc(6)), 1200)
@@ -287,27 +275,27 @@ export default function Bloc6() {
             // Mode questionnaire progressif
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-gray-400 uppercase tracking-wider">Question {currentQ + 1} / {MIFID_QUESTIONS.length}</span>
+                <span className="text-[11px] text-gray-400 uppercase tracking-wider">Question {currentQ + 1} / {QUESTIONS_FILTREES.length}</span>
                 <div className="flex gap-1">
-                  {MIFID_QUESTIONS.map((_, i) => (
+                  {QUESTIONS_FILTREES.map((_, i) => (
                     <div key={i} className={`w-6 h-1.5 rounded-full transition-all ${
-                      state.reponses[MIFID_QUESTIONS[i].id as keyof MifidReponses] > 0 ? 'bg-[#185FA5]' : i === currentQ ? 'bg-[#185FA5]/40' : 'bg-gray-200'
+                      state.reponses[QUESTIONS_FILTREES[i].id as keyof MifidReponses] > 0 ? 'bg-[#185FA5]' : i === currentQ ? 'bg-[#185FA5]/40' : 'bg-gray-200'
                     }`} />
                   ))}
                 </div>
               </div>
 
               <p className="text-[16px] font-semibold text-gray-800 leading-relaxed">
-                {MIFID_QUESTIONS[currentQ].question}
+                {QUESTIONS_FILTREES[currentQ].question}
               </p>
 
               <div className="space-y-3">
-                {MIFID_QUESTIONS[currentQ].options.map((opt, i) => {
-                  const qId = MIFID_QUESTIONS[currentQ].id as keyof MifidReponses
+                {QUESTIONS_FILTREES[currentQ].options.map((opt, i) => {
+                  const qId = QUESTIONS_FILTREES[currentQ].id as keyof MifidReponses
                   const selected = state.reponses[qId] === opt.pts
                   return (
                     <button key={i} type="button"
-                      onClick={() => handleReponse(MIFID_QUESTIONS[currentQ].id, opt.pts)}
+                      onClick={() => handleReponse(QUESTIONS_FILTREES[currentQ].id, opt.pts)}
                       className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-all text-[13px] font-medium ${
                         selected ? 'border-[#185FA5] bg-[#E6F1FB] text-[#0C447C]' : 'border-gray-100 bg-gray-50 text-gray-700 hover:border-gray-200 hover:bg-white'
                       }`}>
@@ -331,10 +319,10 @@ export default function Bloc6() {
                     Voir mon profil →
                   </button>
                 )}
-                {currentQ < MIFID_QUESTIONS.length - 1 && (
+                {currentQ < QUESTIONS_FILTREES.length - 1 && (
                   <button type="button"
                     onClick={() => setCurrentQ(c => c+1)}
-                    disabled={state.reponses[MIFID_QUESTIONS[currentQ].id as keyof MifidReponses] === 0}
+                    disabled={state.reponses[QUESTIONS_FILTREES[currentQ].id as keyof MifidReponses] === 0}
                     className="text-[12px] text-[#185FA5] font-semibold hover:text-[#0C447C] disabled:opacity-30">
                     Suivante →
                   </button>
@@ -349,7 +337,7 @@ export default function Bloc6() {
                   <div>
                     <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Votre profil MiFID II</p>
                     <p className="text-[24px] font-bold" style={{color: profil.color}}>{profil.label}</p>
-                    <p className="text-[13px] text-gray-400 mt-1">Score : {score} / 21</p>
+                    <p className="text-[13px] text-gray-400 mt-1">Score : {score} / {MAX_SCORE}</p>
                   </div>
                   <div className="flex gap-1 items-end">
                     {['Défensif','Équilibré','Dynamique','Offensif'].map((p, i) => (
@@ -375,58 +363,64 @@ export default function Bloc6() {
                 )}
               </div>
 
-              {/* ══ CONVICTIONS (complet uniquement) ════════════════════════ */}
-              {!isRapide && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
-                <SectionTitle>Convictions & préférences d'investissement</SectionTitle>
+              {/* ══ CONVICTIONS (fiscalite ou bilan, complet uniquement) ══════ */}
+              {!isRapide && (objectifPrincipal === 'fiscalite' || objectifPrincipal === 'bilan') && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+                  <SectionTitle>Convictions & préférences d'investissement</SectionTitle>
 
-                <div className="space-y-2">
-                  <p className="text-[12px] text-gray-500 font-medium">Avez-vous des convictions sur vos placements ?</p>
-                  <div className="flex gap-2">
-                    {['Oui','Non'].map(l => (
-                      <button key={l} type="button" onClick={() => upd('aConvictions', l === 'Oui')}
-                        className={`px-4 py-2 rounded-lg text-[13px] border transition-all ${state.aConvictions === (l === 'Oui') ? 'bg-[#185FA5] border-[#185FA5] text-white' : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'}`}>
-                        {l}
-                      </button>
-                    ))}
+                  <div className="space-y-2">
+                    <p className="text-[12px] text-gray-500 font-medium">Avez-vous des convictions sur vos placements ?</p>
+                    <div className="flex gap-2">
+                      {['Oui','Non'].map(l => (
+                        <button key={l} type="button" onClick={() => upd('aConvictions', l === 'Oui')}
+                          className={`px-4 py-2 rounded-lg text-[13px] border transition-all ${state.aConvictions === (l === 'Oui') ? 'bg-[#185FA5] border-[#185FA5] text-white' : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'}`}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
                   </div>
+
+                  {state.aConvictions && (
+                    <div className="space-y-4 pt-2">
+                      <Field label="Univers d'investissement souhaités">
+                        <Chips multi small
+                          options={['Immobilier physique','SCPI / OPCI','PEA','ETF / Fonds indiciels','Assurance-vie','PER','Obligations','Or et métaux précieux','Cryptomonnaies','ISR / ESG']}
+                          value={state.universInvest}
+                          onChange={v => upd('universInvest', v as string[])}
+                        />
+                      </Field>
+
+                      {objectifPrincipal === 'bilan' && (
+                        <>
+                          <Field label="Préférence géographique">
+                            <Chips small
+                              options={['France uniquement','Europe','Monde entier','Marchés émergents inclus']}
+                              value={state.prefGeo}
+                              onChange={v => upd('prefGeo', v as string)}
+                            />
+                          </Field>
+
+                          <Field label="Préférence ESG / ISR">
+                            <Chips small
+                              options={['Pas de préférence','Critères ESG importants','ESG prioritaire','Impact investing uniquement']}
+                              value={state.prefESG}
+                              onChange={v => upd('prefESG', v as string)}
+                            />
+                          </Field>
+
+                          <Field label="Secteurs à exclure (optionnel)">
+                            <Chips multi small
+                              options={['Armement','Tabac','Alcool','Jeux d\'argent','Énergies fossiles']}
+                              value={state.secteursExcl}
+                              onChange={v => upd('secteursExcl', v as string[])}
+                            />
+                          </Field>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
-
-                {state.aConvictions && (
-                  <div className="space-y-4 pt-2">
-                    <Field label="Univers d'investissement souhaités">
-                      <Chips multi small
-                        options={['Immobilier physique','SCPI / OPCI','PEA','ETF / Fonds indiciels','Assurance-vie','PER','Obligations','Or et métaux précieux','Cryptomonnaies','ISR / ESG']}
-                        value={state.universInvest}
-                        onChange={v => upd('universInvest', v as string[])}
-                      />
-                    </Field>
-
-                    <Field label="Préférence géographique">
-                      <Chips small
-                        options={['France uniquement','Europe','Monde entier','Marchés émergents inclus']}
-                        value={state.prefGeo}
-                        onChange={v => upd('prefGeo', v as string)}
-                      />
-                    </Field>
-
-                    <Field label="Préférence ESG / ISR">
-                      <Chips small
-                        options={['Pas de préférence','Critères ESG importants','ESG prioritaire','Impact investing uniquement']}
-                        value={state.prefESG}
-                        onChange={v => upd('prefESG', v as string)}
-                      />
-                    </Field>
-
-                    <Field label="Secteurs à exclure (optionnel)">
-                      <Chips multi small
-                        options={['Armement','Tabac','Alcool','Jeux d\'argent','Énergies fossiles']}
-                        value={state.secteursExcl}
-                        onChange={v => upd('secteursExcl', v as string[])}
-                      />
-                    </Field>
-                  </div>
-                )}
-              </div>}
+              )}
 
               {/* ══ SUIVI ═════════════════════════════════════════════════════ */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
@@ -464,60 +458,46 @@ export default function Bloc6() {
                 </Field>
               </div>
 
-              {/* ══ CONNAISSANCE FINANCIÈRE (complet uniquement) ═════════════ */}
-              {!isRapide && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
-                <SectionTitle>Connaissance financière</SectionTitle>
-                {([
-                  { cf: state.cf1, setCf: (c: ConnaissanceFinanciere) => upd('cf1', c), label: p1Label, isP2: false },
-                  ...(isCouple ? [{ cf: state.cf2, setCf: (c: ConnaissanceFinanciere) => upd('cf2', c), label: p2Label, isP2: true }] : []),
-                ] as { cf: ConnaissanceFinanciere; setCf: (c: ConnaissanceFinanciere) => void; label: string; isP2: boolean }[]).map(({ cf, setCf, label, isP2 }) => (
-                  <div key={label} className="space-y-4">
-                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold ${isP2 ? 'bg-[#E1F5EE] text-[#085041]' : 'bg-[#E6F1FB] text-[#0C447C]'}`}>
-                      <div className={`w-1.5 h-1.5 rounded-full ${isP2 ? 'bg-[#0F6E56]' : 'bg-[#185FA5]'}`} />{label}
-                    </div>
-                    <Field label="Niveau de connaissance financière">
-                      <div className="flex flex-wrap gap-2">
-                        {niveauxCF.map(({ label: lbl, tooltip }) => (
-                          <div key={lbl} className="group relative">
-                            <button type="button" onClick={() => setCf({ ...cf, niveauGeneral: lbl })}
-                              className={`px-4 py-2 rounded-lg text-[13px] border transition-all ${cf.niveauGeneral === lbl ? (isP2 ? 'bg-[#0F6E56] border-[#0F6E56] text-white' : 'bg-[#185FA5] border-[#185FA5] text-white') : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'}`}>
-                              {lbl}
-                            </button>
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-[11px] px-3 py-2 rounded-lg w-48 hidden group-hover:block z-20 leading-relaxed shadow-xl text-center pointer-events-none">
-                              {tooltip}<div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+              {/* ══ CONNAISSANCE FINANCIÈRE (bilan uniquement, complet) ═══════ */}
+              {!isRapide && objectifPrincipal === 'bilan' && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
+                  <SectionTitle>Connaissance financière</SectionTitle>
+                  {([
+                    { cf: state.cf1, setCf: (c: ConnaissanceFinanciere) => upd('cf1', c), label: p1Label, isP2: false },
+                    ...(isCouple ? [{ cf: state.cf2, setCf: (c: ConnaissanceFinanciere) => upd('cf2', c), label: p2Label, isP2: true }] : []),
+                  ] as { cf: ConnaissanceFinanciere; setCf: (c: ConnaissanceFinanciere) => void; label: string; isP2: boolean }[]).map(({ cf, setCf, label, isP2 }) => (
+                    <div key={label} className="space-y-4">
+                      <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold ${isP2 ? 'bg-[#E1F5EE] text-[#085041]' : 'bg-[#E6F1FB] text-[#0C447C]'}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${isP2 ? 'bg-[#0F6E56]' : 'bg-[#185FA5]'}`} />{label}
+                      </div>
+                      <Field label="Niveau de connaissance financière">
+                        <div className="flex flex-wrap gap-2">
+                          {niveauxCF.map(({ label: lbl, tooltip }) => (
+                            <div key={lbl} className="group relative">
+                              <button type="button" onClick={() => setCf({ ...cf, niveauGeneral: lbl })}
+                                className={`px-4 py-2 rounded-lg text-[13px] border transition-all ${cf.niveauGeneral === lbl ? (isP2 ? 'bg-[#0F6E56] border-[#0F6E56] text-white' : 'bg-[#185FA5] border-[#185FA5] text-white') : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'}`}>
+                                {lbl}
+                              </button>
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-[11px] px-3 py-2 rounded-lg w-48 hidden group-hover:block z-20 leading-relaxed shadow-xl text-center pointer-events-none">
+                                {tooltip}<div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </Field>
-                    <Field label="Produits déjà détenus ou utilisés">
-                      <div className="flex flex-wrap gap-2">
-                        {produitsCF.map(p => (
-                          <button key={p} type="button"
-                            onClick={() => { const next = cf.produits.includes(p) ? cf.produits.filter(x => x !== p) : [...cf.produits, p]; setCf({ ...cf, produits: next }) }}
-                            className={`px-3.5 py-1.5 rounded-lg text-[12px] border transition-all ${cf.produits.includes(p) ? (isP2 ? 'bg-[#E1F5EE] border-[#0F6E56] text-[#085041]' : 'bg-[#E6F1FB] border-[#185FA5] text-[#0C447C]') : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}>
-                            {p}
-                          </button>
-                        ))}
-                      </div>
-                      {cf.produits.length > 0 && <p className="mt-2 text-[11px] text-gray-400">{cf.produits.length} produit{cf.produits.length > 1 ? 's' : ''} sélectionné{cf.produits.length > 1 ? 's' : ''}</p>}
-                    </Field>
-                  </div>
-                ))}
-              </div>}
-
-              {/* ══ RISQUES PLACEMENTS (complet uniquement) ═══════════════════ */}
-              {!isRapide && allPlacements.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
-                  <SectionTitle>Niveau de risque par placement</SectionTitle>
-                  {allPlacements.map(pl => (
-                    <Field key={pl.id} label={`${pl.type} — ${pl.nom}`}>
-                      <Chips small
-                        options={['Faible', 'Modéré', 'Élevé', 'Très élevé']}
-                        value={getRisque(pl.id)}
-                        onChange={v => setRisque(pl.id, pl.type, pl.nom, v as string)}
-                      />
-                    </Field>
+                          ))}
+                        </div>
+                      </Field>
+                      <Field label="Produits déjà détenus ou utilisés">
+                        <div className="flex flex-wrap gap-2">
+                          {produitsCF.map(p => (
+                            <button key={p} type="button"
+                              onClick={() => { const next = cf.produits.includes(p) ? cf.produits.filter(x => x !== p) : [...cf.produits, p]; setCf({ ...cf, produits: next }) }}
+                              className={`px-3.5 py-1.5 rounded-lg text-[12px] border transition-all ${cf.produits.includes(p) ? (isP2 ? 'bg-[#E1F5EE] border-[#0F6E56] text-[#085041]' : 'bg-[#E6F1FB] border-[#185FA5] text-[#0C447C]') : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                        {cf.produits.length > 0 && <p className="mt-2 text-[11px] text-gray-400">{cf.produits.length} produit{cf.produits.length > 1 ? 's' : ''} sélectionné{cf.produits.length > 1 ? 's' : ''}</p>}
+                      </Field>
+                    </div>
                   ))}
                 </div>
               )}

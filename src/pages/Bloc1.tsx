@@ -13,6 +13,7 @@ interface Personne {
 
 interface SituationPro {
   statut: string
+  typeContrat: string
   caissesRetraite: string
   dateDepartRetraite: string
   formeJuridique: string
@@ -50,7 +51,7 @@ const defaultFoyer: Foyer = {
 }
 
 const defaultSituationPro = (): SituationPro => ({
-  statut: '', caissesRetraite: '', dateDepartRetraite: '', formeJuridique: '',
+  statut: '', typeContrat: '', caissesRetraite: '', dateDepartRetraite: '', formeJuridique: '',
 })
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -246,6 +247,7 @@ function SituationProCard({ pro, onChange, isP2 = false, personneLabel, isRapide
   const upd = <K extends keyof SituationPro>(k: K, v: SituationPro[K]) => onChange({ ...pro, [k]: v })
   const isRetraite = pro.statut === "Retraité(e)"
   const isTNS = pro.statut === "TNS (indépendant)" || pro.statut === "Chef(fe) d'entreprise"
+  const isSalarie = pro.statut === "Salarié(e) du privé" || pro.statut === "Fonctionnaire"
   const badgeBg = isP2 ? 'bg-[#E1F5EE]' : 'bg-[#E6F1FB]'
   const badgeText = isP2 ? 'text-[#085041]' : 'text-[#0C447C]'
   const dot = isP2 ? 'bg-[#0F6E56]' : 'bg-[#185FA5]'
@@ -266,6 +268,18 @@ function SituationProCard({ pro, onChange, isP2 = false, personneLabel, isRapide
             <option>Étudiant(e)</option>
           </Select>
         </Field>
+        {isSalarie && (
+          <Field label="Type de contrat">
+            <div className="flex flex-wrap gap-2">
+              {['CDI', 'CDD', 'Intérim', 'Autre'].map(opt => (
+                <button key={opt} type="button" onClick={() => upd('typeContrat', opt)}
+                  className={`px-3.5 py-2 text-[12px] rounded-lg border transition-all font-medium ${pro.typeContrat === opt ? 'bg-[#185FA5] border-[#185FA5] text-white' : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'}`}>
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </Field>
+        )}
         {!isRapide && isRetraite && (
           <div className="grid grid-cols-2 gap-4">
             <Field label="Caisse(s) de retraite" tooltip="Ex : CNAV, AGIRC-ARRCO, CIPAV…">

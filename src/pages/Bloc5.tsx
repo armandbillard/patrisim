@@ -10,6 +10,8 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContai
 
 interface RetraitePersonne {
   ageDepartSouhaite: number
+  trimestresConnus: 'oui' | 'non' | 'inconnu'
+  trimestres: string
   regimes: string[]
   pensionConnue: boolean
   pensionBase: string
@@ -65,6 +67,8 @@ interface Bloc5State {
 
 const defaultRetraite = (): RetraitePersonne => ({
   ageDepartSouhaite: 63,
+  trimestresConnus: 'inconnu',
+  trimestres: '',
   regimes: [],
   pensionConnue: false,
   pensionBase: '',
@@ -352,6 +356,38 @@ function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusM
           {errorAge && <p className="text-[11px] text-red-500">{errorAge}</p>}
         </div>
       </Field>
+
+      {/* Trimestres cotisés */}
+      <Field label="Connaissez-vous votre nombre de trimestres cotisés ?">
+        <div className="flex gap-2">
+          {(['oui', 'non', 'inconnu'] as const).map(v => (
+            <button key={v} type="button" onClick={() => upd('trimestresConnus', v)}
+              className={`px-4 py-2 rounded-lg text-[13px] border transition-all ${retraite.trimestresConnus === v ? 'bg-[#185FA5] border-[#185FA5] text-white' : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'}`}>
+              {v === 'oui' ? 'Oui' : v === 'non' ? 'Non' : 'Je ne sais pas'}
+            </button>
+          ))}
+        </div>
+      </Field>
+      {retraite.trimestresConnus === 'oui' && (() => {
+        const anneeNaissance = dateNaissance ? new Date(dateNaissance).getFullYear() : null
+        const trimestresRequis = anneeNaissance !== null && anneeNaissance < 1973 ? 166 : 172
+        return (
+          <div className="space-y-2 pl-2 border-l-2 border-[#E6F1FB]">
+            <Field label="Trimestres cotisés à ce jour">
+              <Input value={retraite.trimestres} onChange={v => upd('trimestres', v)} type="number" placeholder="120" />
+            </Field>
+            <InfoCard color="blue">
+              Il vous faut <strong>{trimestresRequis} trimestres</strong> pour une retraite à taux plein.
+              {retraite.trimestres && <span> Il vous en manque <strong>{Math.max(0, trimestresRequis - parseNum(retraite.trimestres))}</strong>.</span>}
+            </InfoCard>
+          </div>
+        )
+      })()}
+      {retraite.trimestresConnus === 'inconnu' && (
+        <InfoCard color="blue">
+          Consultez votre relevé de carrière sur <strong>info-retraite.fr</strong>
+        </InfoCard>
+      )}
 
       {/* Régimes de retraite — complet uniquement */}
       {!isRapide && (

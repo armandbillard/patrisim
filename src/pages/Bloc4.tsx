@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Upload, CheckCircle, AlertTriangle, X, ArrowDown, ArrowUp } from 'lucide-react'
+import { CheckCircle, ArrowDown, ArrowUp } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { getNextBloc, getPrevBloc, isLastBloc } from '../utils/navigation'
 import FadeIn from '../components/FadeIn'
@@ -29,12 +29,10 @@ interface FiscalData {
   anneeRevenus: string; rfr: string; revenuImposable: string
   impotNet: string; nbParts: string; prelevementsSociaux: string
   creditsReductions: string; source: 'auto'|'manuel'|''
+  modeDeduction: string; fraisReels: string
 }
 
 interface Bloc4State {
-  // PDF
-  pdfStatus: 'idle'|'loading'|'done'|'error'
-  pdfFileName: string
   // Revenus
   p1Pro: RevenusPro; p2Pro: RevenusPro
   revenusFonciersB: string; revenusFinanciers: string
@@ -54,6 +52,7 @@ const defaultPro = (): RevenusPro => ({ salaire: '', remunNette: '' })
 const defaultFiscal = (): FiscalData => ({
   anneeRevenus: '2024', rfr: '', revenuImposable: '', impotNet: '',
   nbParts: '', prelevementsSociaux: '', creditsReductions: '', source: '',
+  modeDeduction: '', fraisReels: '',
 })
 
 const DEPENSES_DEFAUT: Omit<DepenseMensuelle, 'montant'>[] = [
@@ -77,28 +76,6 @@ function loadLS<T extends object>(key: string, fb: T): T {
 const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })
 const pn = (s: unknown) => { const n = parseFloat(String(s).replace(/\s/g, '').replace(',', '.')); return isNaN(n) ? 0 : n }
 
-async function fileToBase64(file: File): Promise<string> {
-  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res((r.result as string).split(',')[1]); r.onerror = () => rej(); r.readAsDataURL(file) })
-}
-
-async function extractPDF(base64: string): Promise<Record<string, unknown>> {
-  const response = await fetch('/api/claude', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514', max_tokens: 800,
-      messages: [{ role: 'user', content: [
-        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-        { type: 'text', text: `Extrais ces données de l'avis d'imposition français. Réponds UNIQUEMENT en JSON valide sans texte autour :
-{"annee_revenus":number,"revenu_fiscal_reference":number,"revenu_imposable":number,"impot_net":number,"nombre_parts":number,"prelevements_sociaux":number,"credits_reductions_impot":number}
-Si introuvable utilise null.` }
-      ]}]
-    })
-  })
-  const data = await response.json()
-  const text = data.content?.find((b: { type: string }) => b.type === 'text')?.text || ''
-  return JSON.parse(text.replace(/```json|```/g, '').trim())
-}
 
 function calcTMI(revImp: number, nbParts: number) {
   const qi = nbParts > 0 ? revImp / nbParts : revImp
@@ -239,7 +216,6 @@ export default function Bloc4() {
 
   const [state, setState] = useState<Bloc4State>(() =>
     loadLS<Bloc4State>('patrisim_bloc4', {
-      pdfStatus: 'idle', pdfFileName: '',
       p1Pro: defaultPro(), p2Pro: defaultPro(),
       revenusFonciersB: loyersBloc2 > 0 ? String(Math.round(loyersBloc2)) : '',
       revenusFinanciers: '',
@@ -257,7 +233,6 @@ export default function Bloc4() {
   const [toast, setToast] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
   const upd = useCallback(<K extends keyof Bloc4State>(k: K, v: Bloc4State[K]) => setState(s => ({ ...s, [k]: v })), [])
-  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { localStorage.setItem('patrisim_bloc4', JSON.stringify(state)); setSavedAt(new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })) }, [state])
 
@@ -282,31 +257,6 @@ export default function Bloc4() {
   const { tmi } = calcTMI(revImp, nb)
   const plafondPer = Math.min((revP1 + revP2) * 12 * 0.10, 35194)
   const economiePer = Math.round(plafondPer * tmi / 100)
-
-  // ── PDF Handler ────────────────────────────────────────────────────────────
-  const handlePDF = async (file: File) => {
-    if (file.type !== 'application/pdf') return
-    upd('pdfStatus', 'loading')
-    upd('pdfFileName', file.name)
-    try {
-      const b64 = await fileToBase64(file)
-      const result = await extractPDF(b64)
-      upd('fiscal', {
-        ...state.fiscal,
-        anneeRevenus: result.annee_revenus ? String(result.annee_revenus) : state.fiscal.anneeRevenus,
-        rfr: result.revenu_fiscal_reference ? String(result.revenu_fiscal_reference) : state.fiscal.rfr,
-        revenuImposable: result.revenu_imposable ? String(result.revenu_imposable) : state.fiscal.revenuImposable,
-        impotNet: result.impot_net ? String(result.impot_net) : state.fiscal.impotNet,
-        nbParts: result.nombre_parts ? String(result.nombre_parts) : state.fiscal.nbParts,
-        prelevementsSociaux: result.prelevements_sociaux ? String(result.prelevements_sociaux) : state.fiscal.prelevementsSociaux,
-        creditsReductions: result.credits_reductions_impot ? String(result.credits_reductions_impot) : state.fiscal.creditsReductions,
-        source: 'auto',
-      })
-      upd('pdfStatus', 'done')
-    } catch {
-      upd('pdfStatus', 'error')
-    }
-  }
 
   // ── Validation ─────────────────────────────────────────────────────────────
   const handleSuivant = () => {
@@ -507,57 +457,8 @@ export default function Bloc4() {
           <FadeIn delay={0.24}>
           <SectionTitle>C — Données fiscales</SectionTitle>
 
-          {/* Import PDF avis d'imposition */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-4 space-y-4">
-            <div>
-              <p className="text-[14px] font-semibold text-gray-800 mb-1">Importez votre avis d'imposition (PDF)</p>
-              <p className="text-[12px] text-gray-400">L'IA extraira automatiquement vos données fiscales.</p>
-            </div>
-
-            {state.pdfStatus === 'idle' && (
-              <div
-                onClick={() => fileRef.current?.click()}
-                onDragOver={e => e.preventDefault()}
-                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handlePDF(f) }}
-                className="border-2 border-dashed border-[#185FA5]/40 bg-[#E6F1FB]/40 hover:bg-[#E6F1FB] hover:border-[#185FA5] rounded-2xl p-8 text-center cursor-pointer transition-all"
-              >
-                <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handlePDF(f) }} />
-                <Upload className="w-7 h-7 text-[#185FA5] mx-auto mb-2" />
-                <p className="text-[13px] font-semibold text-[#0C447C]">Glissez votre PDF ici ou cliquez</p>
-              </div>
-            )}
-
-            {state.pdfStatus === 'loading' && (
-              <div className="flex flex-col items-center gap-3 py-6">
-                <div className="w-7 h-7 border-2 border-[#185FA5] border-t-transparent rounded-full animate-spin" />
-                <p className="text-[13px] text-[#0C447C] font-medium">Analyse IA en cours…</p>
-              </div>
-            )}
-
-            {state.pdfStatus === 'done' && (
-              <div className="flex items-center gap-3 bg-[#E1F5EE] border border-[#0F6E56]/20 rounded-xl px-5 py-4">
-                <CheckCircle className="w-6 h-6 text-[#0F6E56]" />
-                <div>
-                  <p className="text-[13px] font-semibold text-[#085041]">Données extraites automatiquement ✓</p>
-                  <p className="text-[11px] text-[#0F6E56]">{state.pdfFileName} — vérifiez les champs ci-dessous</p>
-                </div>
-                <button type="button" onClick={() => upd('pdfStatus', 'idle')} className="ml-auto text-[11px] text-gray-400 hover:text-red-500"><X size={14} /></button>
-              </div>
-            )}
-
-            {state.pdfStatus === 'error' && (
-              <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-5 py-4">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
-                <p className="text-[13px] text-red-700 font-medium">Extraction impossible — saisissez manuellement ci-dessous</p>
-              </div>
-            )}
-          </div>
-
           {/* Champs fiscaux */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4 mb-6">
-            {state.pdfStatus === 'done' && (
-              <InfoCard color="green">Données pré-remplies depuis votre avis d'imposition — vérifiez et corrigez si nécessaire.</InfoCard>
-            )}
             <div className="grid grid-cols-2 gap-4">
               <Field label="Année des revenus">
                 <select value={state.fiscal.anneeRevenus} onChange={e => upd('fiscal', { ...state.fiscal, anneeRevenus: e.target.value })}
@@ -574,6 +475,22 @@ export default function Bloc4() {
               <Field label="Revenu imposable">
                 <Input value={state.fiscal.revenuImposable} onChange={v => upd('fiscal', { ...state.fiscal, revenuImposable: v })} placeholder="40 000" suffix="€" />
               </Field>
+            </div>
+
+            <Field label="Mode de déduction des frais professionnels">
+              <Chips small
+                options={['Abattement 10% (automatique)', 'Frais réels']}
+                value={state.fiscal.modeDeduction}
+                onChange={v => upd('fiscal', { ...state.fiscal, modeDeduction: v as string })}
+              />
+            </Field>
+            {state.fiscal.modeDeduction === 'Frais réels' && (
+              <Field label="Montant des frais réels annuels">
+                <Input value={state.fiscal.fraisReels} onChange={v => upd('fiscal', { ...state.fiscal, fraisReels: v })} placeholder="0" suffix="€/an" />
+              </Field>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
               <Field label="Impôt sur le revenu net">
                 <Input value={state.fiscal.impotNet} onChange={v => upd('fiscal', { ...state.fiscal, impotNet: v })} placeholder="0" suffix="€" />
               </Field>

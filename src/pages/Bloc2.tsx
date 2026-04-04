@@ -14,18 +14,16 @@ interface Demembrement {
   role: RoleUsufruit; valeurConnue: boolean; valeurNP: string
   ageUsufruitier: string; dateConstitution: string; beneficiaire: string
 }
-interface BailInfo { typeBail: string; dateDebut: string }
 interface LocationInfo {
   meuble: 'Non meublé' | 'Meublé' | ''
   regimeFiscalNM: string; dispositif: string
   statutLMNP: 'LMNP' | 'LMP' | ''; regimeFiscalM: string
   loyerMensuel: string; tauxOccupation: string; chargesAnnuelles: string
-  bailEnCours: boolean; bail: BailInfo
 }
 interface BienImmobilier {
   id: string; typeBien: string; anneeAchat: string; prixAchat: string; travaux: string
   modeFinancement: string; natureJuridique: string; valeurEstimee: string
-  dateEvaluation: string; modeDetention: ModeDetention
+  modeDetention: ModeDetention
   quotePartIndivision: string; sciNom: string; sciParts: string
   demembrement: Demembrement; loue: boolean; location: LocationInfo; collapsed: boolean
 }
@@ -120,8 +118,8 @@ interface Bloc2State {
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 const defaultDemembrement = (): Demembrement => ({ role: '', valeurConnue: false, valeurNP: '', ageUsufruitier: '', dateConstitution: '', beneficiaire: '' })
-const defaultLocation = (): LocationInfo => ({ meuble: '', regimeFiscalNM: '', dispositif: '', statutLMNP: '', regimeFiscalM: '', loyerMensuel: '', tauxOccupation: '100', chargesAnnuelles: '', bailEnCours: false, bail: { typeBail: '', dateDebut: '' } })
-const defaultBien = (): BienImmobilier => ({ id: crypto.randomUUID(), typeBien: '', anneeAchat: '', prixAchat: '', travaux: '0', modeFinancement: '', natureJuridique: '', valeurEstimee: '', dateEvaluation: '', modeDetention: '', quotePartIndivision: '50', sciNom: '', sciParts: '', demembrement: defaultDemembrement(), loue: false, location: defaultLocation(), collapsed: false })
+const defaultLocation = (): LocationInfo => ({ meuble: '', regimeFiscalNM: '', dispositif: '', statutLMNP: '', regimeFiscalM: '', loyerMensuel: '', tauxOccupation: '100', chargesAnnuelles: '' })
+const defaultBien = (): BienImmobilier => ({ id: crypto.randomUUID(), typeBien: '', anneeAchat: '', prixAchat: '', travaux: '0', modeFinancement: '', natureJuridique: '', valeurEstimee: '', modeDetention: '', quotePartIndivision: '50', sciNom: '', sciParts: '', demembrement: defaultDemembrement(), loue: false, location: defaultLocation(), collapsed: false })
 const defaultScpi = (): ScpiDirecte => ({ id: crypto.randomUUID(), type: '', nbParts: '', prixSouscription: '', dividendesAnnuels: '', natureJuridique: '', modeDetention: '', demembrement: defaultDemembrement() })
 const defaultCC = (): CompteCourant => ({ id: crypto.randomUUID(), solde: '', titulaire: '' })
 const defaultLivret = (): Livret => ({ id: crypto.randomUUID(), type: '', taux: '', solde: '', dateOuverture: '', dateEcheance: '', titulaire: '' })
@@ -386,18 +384,6 @@ function LocationFields({ loc, onChange }: { loc: LocationInfo; onChange: (l: Lo
             <Field label="Taux d'occupation"><Input type="number" value={loc.tauxOccupation} onChange={v => upd('tauxOccupation', v)} placeholder="100" suffix="%" /></Field>
             <Field label="Charges annuelles" tooltip="Taxe foncière + charges copro + assurance PNO"><Input value={loc.chargesAnnuelles} onChange={v => upd('chargesAnnuelles', v)} placeholder="0" suffix="€" /></Field>
           </div>
-          <Field label="Bail en cours ?"><Toggle value={loc.bailEnCours} onChange={v => upd('bailEnCours', v)} /></Field>
-          {loc.bailEnCours && (
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Type de bail">
-                <Select value={loc.bail.typeBail} onChange={v => upd('bail', { ...loc.bail, typeBail: v })}>
-                  <option value="">Sélectionnez…</option>
-                  <option>Bail vide 3 ans</option><option>Bail étudiant 9 mois</option><option>Bail mobilité 1-10 mois</option>
-                </Select>
-              </Field>
-              <Field label="Date de début"><Input type="date" value={loc.bail.dateDebut} onChange={v => upd('bail', { ...loc.bail, dateDebut: v })} /></Field>
-            </div>
-          )}
         </div>
       )}
       {loc.meuble === 'Meublé' && (
@@ -416,18 +402,6 @@ function LocationFields({ loc, onChange }: { loc: LocationInfo; onChange: (l: Lo
             <Field label="Taux d'occupation"><Input type="number" value={loc.tauxOccupation} onChange={v => upd('tauxOccupation', v)} placeholder="100" suffix="%" /></Field>
             <Field label="Charges annuelles"><Input value={loc.chargesAnnuelles} onChange={v => upd('chargesAnnuelles', v)} placeholder="0" suffix="€" /></Field>
           </div>
-          <Field label="Bail en cours ?"><Toggle value={loc.bailEnCours} onChange={v => upd('bailEnCours', v)} /></Field>
-          {loc.bailEnCours && (
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Type de bail">
-                <Select value={loc.bail.typeBail} onChange={v => upd('bail', { ...loc.bail, typeBail: v })}>
-                  <option value="">Sélectionnez…</option>
-                  <option>Bail meublé classique 1 an</option><option>Bail mobilité 1-10 mois</option><option>Bail étudiant 9 mois</option>
-                </Select>
-              </Field>
-              <Field label="Date de début"><Input type="date" value={loc.bail.dateDebut} onChange={v => upd('bail', { ...loc.bail, dateDebut: v })} /></Field>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -475,7 +449,6 @@ function BienCard({ bien, onChange, isRP = false, regimeMatrimonial = '', statut
                 {!bien.valeurEstimee && estimation !== null && <p className="text-[11px] text-gray-400 italic">Auto : <strong className="text-gray-600">{fmt(estimation)} €</strong></p>}
               </div>
             </Field>
-            <Field label="Date dernière évaluation (optionnel)"><Input type="date" value={bien.dateEvaluation} onChange={v => upd('dateEvaluation', v)} /></Field>
           </div>
           <Field label="Mode de détention"><Chips options={['Pleine propriété', 'Indivision', 'SCI', 'Démembrement']} value={bien.modeDetention} onChange={v => upd('modeDetention', v as ModeDetention)} /></Field>
           {bien.modeDetention === 'Indivision' && <Field label="Quote-part (%)"><Input type="number" value={bien.quotePartIndivision} onChange={v => upd('quotePartIndivision', v)} placeholder="50" suffix="%" /></Field>}
