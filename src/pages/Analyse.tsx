@@ -123,11 +123,21 @@ function computePreCalculations() {
   const totalDettes = (b3.creditsImmo || []).reduce((a, c) => a + parseNum(c.crd), 0) + (b3.creditsConso || []).reduce((a, c) => a + parseNum(c.crd), 0)
   const patrimoineNet = patrimoineBrut - totalDettes
 
-  const b4 = bloc4 as { p1Pro?: {salaire?: string; remunNette?: string}; p2Pro?: {salaire?: string}; mensualitesCredits?: string; assurances?: string; abonnements?: string; loyerMensuel?: string; fiscal?: {tmi?: number; rfr?: string; impotNet?: string; prelevementsSociaux?: string} }
+  const b4 = bloc4 as { p1Pro?: {salaire?: string; remunNette?: string}; p2Pro?: {salaire?: string}; mensualitesCredits?: string; assurances?: string; abonnements?: string; loyerMensuel?: string; fiscal?: {tmi?: number; rfr?: string; impotNet?: string; prelevementsSociaux?: string}; depenses?: {montant?: string; pct?: string; mode?: string}[] }
   const revP1 = parseNum(b4.p1Pro?.salaire || b4.p1Pro?.remunNette)
   const revP2 = parseNum(b4.p2Pro?.salaire)
   const totalRev = revP1 + revP2
-  const totalCharges = parseNum(b4.mensualitesCredits) + parseNum(b4.assurances) + parseNum(b4.abonnements) + parseNum(b4.loyerMensuel)
+  // Utilise le tableau depenses (somme de toutes les catégories) si disponible,
+  // sinon fallback sur les 4 champs séparés (anciens profils sans depenses)
+  const depensesList = b4.depenses || []
+  const depensesTotal = depensesList.reduce((sum, d) => {
+    if (d.montant && parseNum(d.montant) > 0) return sum + parseNum(d.montant)
+    if (d.mode === 'pct' && d.pct) return sum + Math.round(totalRev * parseFloat(d.pct) / 100)
+    return sum
+  }, 0)
+  const totalCharges = depensesTotal > 0
+    ? depensesTotal
+    : parseNum(b4.mensualitesCredits) + parseNum(b4.assurances) + parseNum(b4.abonnements) + parseNum(b4.loyerMensuel)
   const capaciteEpargne = Math.max(0, totalRev - totalCharges)
 
   const tmi = (b4.fiscal as Record<string,number>)?.tmi || 0
