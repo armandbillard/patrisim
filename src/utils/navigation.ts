@@ -8,7 +8,7 @@ function getBlocsActifs(): number[] {
     const { objectif, niveauDetail = 'complet' } = JSON.parse(raw)
     if (!objectif || objectif === 'bilan') return [1, 2, 3, 4, 5, 6, 7]
     const blocs = new Set<number>([1])
-    if (objectif === 'retraite')       { blocs.add(4); blocs.add(5) }
+    if (objectif === 'retraite')       { blocs.add(2); blocs.add(4); blocs.add(5) }
     if (objectif === 'fiscalite')      { blocs.add(2); blocs.add(3); blocs.add(4) }
     if (objectif === 'succession')     { blocs.add(2); blocs.add(7) }
     if (objectif === 'investissement') { blocs.add(2); blocs.add(6) }

@@ -409,7 +409,7 @@ function LocationFields({ loc, onChange }: { loc: LocationInfo; onChange: (l: Lo
 }
 
 // ─── BienCard ─────────────────────────────────────────────────────────────────
-function BienCard({ bien, onChange, isRP = false, regimeMatrimonial = '', statutMatrimonial = '', p1Label = 'Personne 1', p2Label = 'Personne 2' }: { bien: BienImmobilier; onChange: (b: BienImmobilier) => void; isRP?: boolean; regimeMatrimonial?: string; statutMatrimonial?: string; p1Label?: string; p2Label?: string }) {
+function BienCard({ bien, onChange, isRP = false, hideLocation = false, regimeMatrimonial = '', statutMatrimonial = '', p1Label = 'Personne 1', p2Label = 'Personne 2' }: { bien: BienImmobilier; onChange: (b: BienImmobilier) => void; isRP?: boolean; hideLocation?: boolean; regimeMatrimonial?: string; statutMatrimonial?: string; p1Label?: string; p2Label?: string }) {
   const upd = <K extends keyof BienImmobilier>(k: K, v: BienImmobilier[K]) => onChange({ ...bien, [k]: v })
   const estimation = autoEstimate(bien)
   const valeurAffichee = bien.valeurEstimee ? parseNum(bien.valeurEstimee) : (estimation ?? 0)
@@ -454,7 +454,7 @@ function BienCard({ bien, onChange, isRP = false, regimeMatrimonial = '', statut
           {bien.modeDetention === 'Indivision' && <Field label="Quote-part (%)"><Input type="number" value={bien.quotePartIndivision} onChange={v => upd('quotePartIndivision', v)} placeholder="50" suffix="%" /></Field>}
           {bien.modeDetention === 'SCI' && <div className="grid grid-cols-2 gap-4"><Field label="Nom de la SCI"><Input value={bien.sciNom} onChange={v => upd('sciNom', v)} placeholder="SCI Dupont" /></Field><Field label="% parts détenues"><Input type="number" value={bien.sciParts} onChange={v => upd('sciParts', v)} placeholder="50" suffix="%" /></Field></div>}
           {bien.modeDetention === 'Démembrement' && <DemembrementFields d={bien.demembrement} onChange={d => upd('demembrement', d)} valeurRef={valeurAffichee} />}
-          {!isRP && (
+          {!isRP && !hideLocation && (
             <div className="pt-2">
               <Field label="Ce bien est-il loué ?"><Toggle value={bien.loue} onChange={v => upd('loue', v)} /></Field>
               {bien.loue && <LocationFields loc={bien.location} onChange={l => upd('location', l)} />}
@@ -501,7 +501,8 @@ export default function Bloc2() {
   const p1Data = loadFromStorage<{ prenom?: string }>('patrisim_bloc1_p1', {})
   const p2Data = loadFromStorage<{ prenom?: string }>('patrisim_bloc1_p2', {})
   const modeData = loadFromStorage<{ v?: string }>('patrisim_bloc1_mode', {})
-  const bloc0 = loadFromStorage<{ niveauDetail?: string }>('patrisim_bloc0', {})
+  const bloc0 = loadFromStorage<{ objectif?: string; niveauDetail?: string }>('patrisim_bloc0', {})
+  const isRetraite = bloc0.objectif === 'retraite'
   const isRapide = (bloc0.niveauDetail || 'complet') === 'rapide'
   const isCouple = modeData.v === 'couple'
   const p1Label = p1Data.prenom?.trim() || 'Personne 1'
@@ -683,7 +684,7 @@ export default function Bloc2() {
         <SubTitle>Résidence principale</SubTitle>
         <div className="mb-6">
           <Field label="Êtes-vous propriétaire de votre résidence principale ?"><Toggle value={state.proprietaireRP} onChange={v => upd('proprietaireRP', v)} /></Field>
-          {state.proprietaireRP && <div className="mt-4"><BienCard bien={state.rp} onChange={b => upd('rp', b)} isRP p1Label={p1Label} p2Label={p2Label} regimeMatrimonial={regimeMatrimonial} statutMatrimonial={statutMatrimonial} /></div>}
+          {state.proprietaireRP && <div className="mt-4"><BienCard bien={state.rp} onChange={b => upd('rp', b)} isRP hideLocation={isRetraite} p1Label={p1Label} p2Label={p2Label} regimeMatrimonial={regimeMatrimonial} statutMatrimonial={statutMatrimonial} /></div>}
         </div>
         <SubTitle>Autres biens immobiliers</SubTitle>
         <div className="mb-6">
@@ -693,7 +694,7 @@ export default function Bloc2() {
               <AnimatePresence>
               {state.biens.map(b => (
                 <motion.div key={b.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }} className="relative">
-                  <BienCard bien={b} onChange={nb => updateBien(b.id, nb)} p1Label={p1Label} p2Label={p2Label} regimeMatrimonial={regimeMatrimonial} statutMatrimonial={statutMatrimonial} />
+                  <BienCard bien={b} onChange={nb => updateBien(b.id, nb)} hideLocation={isRetraite} p1Label={p1Label} p2Label={p2Label} regimeMatrimonial={regimeMatrimonial} statutMatrimonial={statutMatrimonial} />
                   <button type="button" onClick={() => removeBien(b.id)} className="absolute top-4 right-14 text-[11px] text-red-400 hover:text-red-600 font-medium">Supprimer</button>
                 </motion.div>
               ))}
@@ -702,7 +703,8 @@ export default function Bloc2() {
             </div>
           )}
         </div>
-        <SubTitle>SCPI en direct</SubTitle>
+        {!isRetraite && (
+        <><SubTitle>SCPI en direct</SubTitle>
         <div className="mb-6">
           <Field label="Avez-vous des parts de SCPI en direct ?"><Toggle value={state.aScpi} onChange={v => { upd('aScpi', v); if (!v) upd('scpis', []) }} /></Field>
           {state.aScpi && (
@@ -713,7 +715,8 @@ export default function Bloc2() {
               <AddBtn onClick={addScpi} label="Ajouter une SCPI" />
             </div>
           )}
-        </div>
+        </div></>
+        )}
 
         </FadeIn>
 
@@ -1026,7 +1029,8 @@ export default function Bloc2() {
         </div>
 
         {/* Crypto */}
-        <SubTitle>Cryptomonnaies</SubTitle>
+        {!isRetraite && (
+        <><SubTitle>Cryptomonnaies</SubTitle>
         <div className="mb-6">
           <Field label="Avez-vous des cryptomonnaies ?"><Toggle value={state.aCrypto} onChange={v => upd('aCrypto', v)} /></Field>
           {state.aCrypto && (
@@ -1045,10 +1049,12 @@ export default function Bloc2() {
               </div>
             </div>
           )}
-        </div>
+        </div></>
+        )}
 
         {/* Autres placements */}
-        <SubTitle>Autres placements financiers</SubTitle>
+        {!isRetraite && (
+        <><SubTitle>Autres placements financiers</SubTitle>
         <div className="mb-6">
           <Field label="Avez-vous d'autres placements financiers ?"><Toggle value={state.aAutresPlacements} onChange={v => upd('aAutresPlacements', v)} /></Field>
           {state.aAutresPlacements && (
@@ -1126,11 +1132,13 @@ export default function Bloc2() {
               </div>
             </div>
           )}
-        </div>
+        </div></>
+        )}
 
         </FadeIn>
 
         {/* ══ C — AUTRES ACTIFS ══════════════════════════════════════════════ */}
+        {!isRetraite && (
         <FadeIn delay={0.16}>
         <SectionDivider label="C — Autres actifs" />
         <div className="mb-6">
@@ -1243,6 +1251,7 @@ export default function Bloc2() {
         </div>
 
         </FadeIn>
+        )}
 
         </>)}
 

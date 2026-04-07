@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle, Lock, RotateCcw } from 'lucide-react'
+import { CheckCircle, Lock, RotateCcw, Menu, X } from 'lucide-react'
 
 interface SidebarProps { currentStep: number }
 
@@ -11,7 +11,7 @@ function getBlocsActifs(): number[] {
     const { objectif, niveauDetail = 'complet' } = JSON.parse(raw)
     if (!objectif || objectif === 'bilan') return [1,2,3,4,5,6,7]
     const blocs = new Set<number>([1])
-    if (objectif === 'retraite')    { blocs.add(4); blocs.add(5) }
+    if (objectif === 'retraite')    { blocs.add(2); blocs.add(4); blocs.add(5) }
     if (objectif === 'fiscalite')   { blocs.add(2); blocs.add(3); blocs.add(4) }
     if (objectif === 'succession')  { blocs.add(2); blocs.add(7) }
     if (objectif === 'investissement') { blocs.add(2); blocs.add(6) }
@@ -23,7 +23,7 @@ function getBlocsActifs(): number[] {
       if (blocs.has(5)) blocs.add(4)
       if (blocs.has(7)) blocs.add(2)
     }
-    return Array.from(blocs).sort()
+    return Array.from(blocs).sort((a, b) => a - b)
   } catch { return [1,2,3,4,5,6,7] }
 }
 
@@ -38,12 +38,35 @@ const STEPS = [
 ]
 
 const STORAGE_KEYS = [
-  'patrisim_bloc0', 'patrisim_bloc1_mode', 'patrisim_bloc1_p1', 'patrisim_bloc1_p2',
+  'patrisim_bloc0',
+  'patrisim_bloc1_mode', 'patrisim_bloc1_p1', 'patrisim_bloc1_p2',
   'patrisim_bloc1_pro1', 'patrisim_bloc1_pro2', 'patrisim_bloc1_foyer',
+  'patrisim_bloc1_cf1', 'patrisim_bloc1_cf2',
   'patrisim_bloc2', 'patrisim_bloc3', 'patrisim_bloc3_calc',
   'patrisim_bloc4', 'patrisim_bloc5', 'patrisim_bloc6', 'patrisim_bloc7',
-  'patrisim_analyse',
+  'patrisim_analyse', 'patrisim_hypotheses',
 ]
+
+const BLOC_DONE_KEYS: Record<number, string> = {
+  1: 'patrisim_bloc1_p1',
+  2: 'patrisim_bloc2',
+  3: 'patrisim_bloc3',
+  4: 'patrisim_bloc4',
+  5: 'patrisim_bloc5',
+  6: 'patrisim_bloc6',
+  7: 'patrisim_bloc7',
+}
+
+function isBlocCompleted(n: number): boolean {
+  const key = BLOC_DONE_KEYS[n]
+  if (!key) return false
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return false
+    const parsed = JSON.parse(raw)
+    return typeof parsed === 'object' && parsed !== null && Object.keys(parsed).length > 0
+  } catch { return false }
+}
 
 export default function Sidebar({ currentStep }: SidebarProps) {
   const navigate = useNavigate()
@@ -52,6 +75,11 @@ export default function Sidebar({ currentStep }: SidebarProps) {
 
   const handleReset = () => {
     STORAGE_KEYS.forEach(k => localStorage.removeItem(k))
+    // Supprimer les caches démo dynamiques (patrisim_analyse_demo_*)
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('patrisim_analyse_demo_'))
+      .forEach(k => localStorage.removeItem(k))
+    sessionStorage.clear()
     setShowResetModal(false)
     navigate('/start')
   }
@@ -59,6 +87,10 @@ export default function Sidebar({ currentStep }: SidebarProps) {
   const isDone = (n: number) => n < currentStep && blocsActifs.includes(n)
   const isActive = (n: number) => n === currentStep
   const isDisabled = (n: number) => !blocsActifs.includes(n)
+
+  const blocsTotal = blocsActifs.length
+  const blocsCompleted = blocsActifs.filter(n => isBlocCompleted(n)).length
+  const progressPct = blocsTotal > 0 ? Math.round(blocsCompleted / blocsTotal * 100) : 0
 
   return (
     <div className="w-[220px] bg-white border-r border-gray-100 flex flex-col fixed top-0 left-0 h-full z-40">
@@ -97,6 +129,20 @@ export default function Sidebar({ currentStep }: SidebarProps) {
         <p className="text-[10px] text-gray-400 mt-0.5">Simulation patrimoniale</p>
       </div>
 
+      {/* Progression */}
+      <div className="px-5 py-3 border-b border-gray-50">
+        <div className="flex justify-between items-center mb-1.5">
+          <span className="text-[11px] text-gray-400">{blocsCompleted} / {blocsTotal} étapes complétées</span>
+          <span className="text-[11px] font-semibold text-[#185FA5]">{progressPct}%</span>
+        </div>
+        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-[#185FA5] rounded-full transition-all duration-500"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
+
       {/* Steps */}
       <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto">
         {STEPS.map(({ n, label, path }) => {
@@ -105,37 +151,46 @@ export default function Sidebar({ currentStep }: SidebarProps) {
           const disabled = isDisabled(n)
 
           return (
-            <button key={n} type="button"
-              disabled={disabled}
-              onClick={() => !disabled && navigate(path)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
-                active   ? 'bg-[#E6F1FB] text-[#0C447C]'
-                : done   ? 'text-gray-500 hover:bg-gray-50 cursor-pointer'
-                : disabled ? 'text-gray-300 cursor-not-allowed'
-                : 'text-gray-400 hover:bg-gray-50 cursor-pointer'
-              }`}
-            >
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${
-                done    ? 'bg-[#0F6E56] text-white'
-                : active  ? 'bg-[#185FA5] text-white'
-                : disabled ? 'bg-gray-100 text-gray-300'
-                : 'bg-gray-100 text-gray-400'
-              }`}>
-                {done ? <CheckCircle size={13} /> : disabled ? <Lock size={10} /> : n}
-              </div>
+            <div key={n} className="relative group">
+              <button type="button"
+                disabled={disabled}
+                onClick={() => !disabled && navigate(path)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
+                  active   ? 'bg-[#E6F1FB] text-[#0C447C]'
+                  : done   ? 'text-gray-500 hover:bg-gray-50 cursor-pointer'
+                  : disabled ? 'text-gray-300 cursor-not-allowed'
+                  : 'text-gray-400 hover:bg-gray-50 cursor-pointer'
+                }`}
+              >
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${
+                  done    ? 'bg-[#0F6E56] text-white'
+                  : active  ? 'bg-[#185FA5] text-white'
+                  : disabled ? 'bg-gray-100 text-gray-300'
+                  : 'bg-gray-100 text-gray-400'
+                }`}>
+                  {done ? <CheckCircle size={13} /> : disabled ? <Lock size={10} /> : n}
+                </div>
 
-              <span className={`text-[12px] font-medium flex-1 ${
-                active ? 'text-[#0C447C]' : disabled ? 'text-gray-300' : ''
-              }`}>
-                {label}
-              </span>
+                <span className={`text-[12px] font-medium flex-1 ${
+                  active ? 'text-[#0C447C]' : disabled ? 'text-gray-300' : ''
+                }`}>
+                  {label}
+                </span>
+
+                {disabled && (
+                  <span className="text-[9px] text-gray-200 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                    non requis
+                  </span>
+                )}
+              </button>
 
               {disabled && (
-                <span className="text-[9px] text-gray-200 bg-gray-100 px-1.5 py-0.5 rounded-full">
-                  non requis
-                </span>
+                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 bg-gray-900 text-white text-[11px] px-3 py-2 rounded-lg w-44 hidden group-hover:block z-50 shadow-xl leading-relaxed pointer-events-none">
+                  Non requis pour votre objectif
+                  <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900" />
+                </div>
               )}
-            </button>
+            </div>
           )
         })}
       </nav>

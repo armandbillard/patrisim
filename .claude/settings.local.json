@@ -3,7 +3,12 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(npm run:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(ls C:/Users/arman/Desktop/patrisim/src/*.d.ts)",
+      "Bash(wc -l C:/Users/arman/Desktop/patrisim/src/pages/*.tsx)",
+      "Bash(mkdir -p /home/claude)",
+      "Bash(mkdir -p /mnt/user-data/outputs)",
+      "Bash(git add:*)"
     ]
   }
 }

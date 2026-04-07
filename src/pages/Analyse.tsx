@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle, AlertTriangle, Info, BarChart2, TrendingUp, PieChart, DollarSign, Users, Settings, Mail, GraduationCap } from 'lucide-react'
+import { CheckCircle, AlertTriangle, Info, BarChart2, TrendingUp, PieChart, DollarSign, Users, Settings, Mail, GraduationCap, WifiOff } from 'lucide-react'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import FadeIn from '../components/FadeIn'
 
@@ -31,6 +31,24 @@ function useAnimatedCounter(target: number, duration = 1200) {
     }
     const id = requestAnimationFrame(step)
     return () => cancelAnimationFrame(id)
+  }, [target, duration])
+  return value
+}
+
+function useCounter(target: number, duration = 1200) {
+  const [value, setValue] = useState(0)
+  useEffect(() => {
+    if (target === 0) { setValue(0); return }
+    const steps = 40
+    const increment = target / steps
+    const intervalMs = duration / steps
+    let current = 0
+    const id = setInterval(() => {
+      current += increment
+      if (current >= target) { setValue(Math.round(target)); clearInterval(id); return }
+      setValue(Math.round(current))
+    }, intervalMs)
+    return () => clearInterval(id)
   }, [target, duration])
   return value
 }
@@ -131,6 +149,7 @@ function computePreCalculations() {
 
 function buildCompressedData(preCalc: ReturnType<typeof computePreCalculations>) {
   const mode = loadLS<{ v?: string }>('patrisim_bloc1_mode', {}).v || 'seul'
+  const p1 = loadLS<{ prenom?: string }>('patrisim_bloc1_p1', {})
   const pro1 = loadLS<Record<string, unknown>>('patrisim_bloc1_pro1', {})
   const foyer = loadLS<Record<string, unknown>>('patrisim_bloc1_foyer', {})
   const bloc6 = loadLS<Record<string, unknown>>('patrisim_bloc6', {})
@@ -145,17 +164,21 @@ function buildCompressedData(preCalc: ReturnType<typeof computePreCalculations>)
   return {
     objectif: bloc0.objectif || 'bilan',
     mode,
+    prenom_p1: p1.prenom?.trim() || null,
     age: preCalc.age1,
     statut_pro: pro1.statut,
     statut_matrimonial: (foyer as Record<string,string>).statutMatrimonial,
     nb_enfants: (foyer as Record<string,number>).enfantsCharge || 0,
+    patrimoine_brut: preCalc.patrimoineBrut,
     patrimoine_net: preCalc.patrimoineNet,
+    total_dettes: preCalc.totalDettes,
     revenus_mensuels: preCalc.totalRev,
     capacite_epargne: preCalc.capaciteEpargne,
     taux_endettement: preCalc.tauxEndettement,
     tmi: preCalc.tmi,
     taux_moyen: preCalc.tauxMoyen,
     pression_fiscale_annuelle: preCalc.pressionFiscale,
+    age_depart_retraite: preCalc.ageDepart,
     annees_avant_retraite: preCalc.anneesAvantRetraite,
     deficit_mensuel_retraite: preCalc.deficitMensuel,
     capital_necessaire_retraite: preCalc.capitalNecessaire,
@@ -169,17 +192,57 @@ function buildCompressedData(preCalc: ReturnType<typeof computePreCalculations>)
   }
 }
 
+// ─── Parsing robuste ─────────────────────────────────────────────────────────
+
+function safeParseAI(raw: string) {
+  try {
+    // Tentative 1 : JSON direct
+    return JSON.parse(raw)
+  } catch {
+    try {
+      // Tentative 2 : extraire entre { et }
+      const match = raw.match(/\{[\s\S]*\}/)
+      if (match) return JSON.parse(match[0])
+    } catch {
+      try {
+        // Tentative 3 : nettoyer les caractères invisibles
+        const cleaned = raw
+          .replace(/[\x00-\x1F\x7F]/g, ' ')
+          .replace(/,\s*}/g, '}')
+          .replace(/,\s*]/g, ']')
+        const match2 = cleaned.match(/\{[\s\S]*\}/)
+        if (match2) return JSON.parse(match2[0])
+      } catch {
+        console.error('Impossible de parser la réponse IA:', raw)
+        return null
+      }
+    }
+  }
+  return null
+}
+
 // ─── Appel API ───────────────────────────────────────────────────────────────
 
 async function callAPI(data: ReturnType<typeof buildCompressedData>): Promise<AIResult> {
   const tmi = data.tmi
   const mode = data.mode === 'couple' ? 'vouvoiement' : 'tutoiement'
 
-  const systemPrompt = `Tu es un conseiller en gestion de patrimoine français, pédagogue et bienveillant.
+  const systemPrompt = `RÈGLES ABSOLUES :
+- Réponds UNIQUEMENT en JSON valide, aucun texte avant ou après
+- Pas de backticks, pas de markdown, pas de commentaires
+- Tous les montants en euros sont des nombres entiers (pas de décimales)
+- Maximum 3 recommandations, chacune avec urgence: 'haute' | 'moyenne' | 'faible'
+- Chaque recommandation doit avoir : titre (max 8 mots), description (max 25 mots), urgence, gain_estime (nombre entier)
+- points_forts : exactement 3 éléments, max 10 mots chacun
+- points_attention : exactement 2 éléments, max 10 mots chacun
+- Zéro jargon financier : pas de MiFID, AGIRC-ARRCO, flat tax, arbitrage
+- Tutoyer l'utilisateur
+
+Tu es un conseiller en gestion de patrimoine français, pédagogue et bienveillant.
 Toutes les métriques financières sont DÉJÀ CALCULÉES dans le profil fourni.
 Ta mission : écrire une synthèse humaine et des recommandations concrètes.
 
-RÈGLES ABSOLUES :
+RÈGLES COMPLÉMENTAIRES :
 - ${mode}
 - Zéro jargon : pas de "MiFID II", "AGIRC-ARRCO", "surcotisations", "arbitrage", "allocation d'actifs"
 - Pas de tirets "—" dans le texte
@@ -214,32 +277,32 @@ Retourne exactement ce JSON :
   ]
 }`
 
-  const response = await fetch('/api/claude', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1000,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: `Profil :\n${JSON.stringify(data)}` }]
-    })
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 45000)
 
-  const json = await response.json()
-  const text = json.content?.find((b: { type: string }) => b.type === 'text')?.text || ''
-  if (!text) throw new Error('Réponse vide')
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
-  if (start === -1 || end === -1) throw new Error('JSON introuvable')
-  // Nettoyage : supprimer les caractères de contrôle invisibles (sauf \n \r \t valides en JSON)
-  const cleaned = text.substring(start, end + 1).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+  let response: Response
   try {
-    return JSON.parse(cleaned) as AIResult
-  } catch (e) {
-    console.error('[PatriSim] Erreur parsing JSON IA:', e)
-    console.error('[PatriSim] Texte brut reçu:', text)
-    return {} as AIResult
+    response = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: `Profil :\n${JSON.stringify(data)}` }]
+      })
+    })
+  } finally {
+    clearTimeout(timeout)
   }
+
+  const json = await response!.json()
+  const text = json.content?.find((b: { type: string }) => b.type === 'text')?.text || ''
+  if (!text) throw new Error('Réponse vide — le modèle n\'a rien renvoyé.')
+  const parsed = safeParseAI(text)
+  if (!parsed) throw new Error('Format de réponse invalide — impossible d\'interpréter la réponse du modèle.')
+  return parsed as AIResult
 }
 
 // ─── Composants UI ────────────────────────────────────────────────────────────
@@ -281,6 +344,45 @@ function MetricCard({ label, value, sub, color }: { label: string; value: string
   )
 }
 
+// ─── ErrorState ──────────────────────────────────────────────────────────────
+
+function ErrorState({ errorMsg, onRetry, onMetrics }: {
+  errorMsg: string
+  onRetry: () => void
+  onMetrics: (() => void) | null
+}) {
+  return (
+    <div className="min-h-screen bg-[#F8F8F6] flex items-center justify-center px-8">
+      <div className="max-w-md w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center space-y-5">
+        <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto">
+          <WifiOff size={28} className="text-red-400" />
+        </div>
+        <div className="space-y-1.5">
+          <h2 className="text-[18px] font-bold text-gray-900">Analyse temporairement indisponible</h2>
+          <p className="text-[13px] text-gray-500">Vérifiez votre connexion et réessayez.</p>
+        </div>
+        {errorMsg && (
+          <p className="text-[11px] text-red-400 bg-red-50 rounded-lg px-3 py-2 text-left leading-relaxed">
+            {errorMsg}
+          </p>
+        )}
+        <div className="flex flex-col gap-2.5 pt-1">
+          <button type="button" onClick={onRetry}
+            className="w-full py-3 rounded-xl bg-[#185FA5] text-white text-[13px] font-semibold hover:bg-[#0C447C] transition-colors">
+            Réessayer
+          </button>
+          {onMetrics && (
+            <button type="button" onClick={onMetrics}
+              className="w-full py-3 rounded-xl border border-gray-200 text-[13px] text-gray-500 hover:bg-gray-50 transition-colors">
+              Voir les données sans IA
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
 const LOADING_MESSAGES = [
@@ -307,13 +409,17 @@ const urgenceBadge: Record<string, string> = { immediate: 'bg-red-50 text-red-70
 
 export default function Analyse() {
   const navigate = useNavigate()
-  const [phase, setPhase] = useState<'loading' | 'result' | 'error'>('loading')
+  const [phase, setPhase] = useState<'loading' | 'result' | 'error' | 'metrics'>('loading')
   const [result, setResult] = useState<AIResult | null>(null)
   const [preCalc, setPreCalc] = useState<ReturnType<typeof computePreCalculations> | null>(null)
   const [progress, setProgress] = useState(0)
   const [loadingMsg, setLoadingMsg] = useState(0)
   const [errorMsg, setErrorMsg] = useState('')
   const hasCalled = useRef(false)
+
+  const animPatrimoineNet = useCounter(preCalc?.patrimoineNet ?? 0)
+  const animCapaciteEpargne = useCounter(preCalc?.capaciteEpargne ?? 0)
+  const animScoreGlobal = useCounter(result?.score_global ?? 0)
 
   useEffect(() => {
     if (hasCalled.current) return
@@ -339,6 +445,8 @@ export default function Analyse() {
             setTimeout(() => setPhase('result'), 400)
             return
           }
+          // Cache expiré : le supprimer avant de relancer l'analyse
+          localStorage.removeItem('patrisim_analyse')
         }
 
         // Cache démo
@@ -407,25 +515,95 @@ export default function Analyse() {
     </div>
   )
 
-  if (phase === 'error' || !result || !preCalc) return (
-    <div className="min-h-screen bg-[#F8F8F6] flex items-center justify-center px-8">
-      <div className="max-w-md w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center space-y-5">
-        <AlertTriangle size={40} className="text-amber-500 mx-auto" />
-        <h2 className="text-[18px] font-bold text-gray-900">Analyse temporairement indisponible</h2>
-        <p className="text-[13px] text-gray-500">Vérifiez votre connexion et réessayez.</p>
-        {errorMsg && <p className="text-[11px] text-red-400 bg-red-50 rounded-lg px-3 py-2">{errorMsg}</p>}
-        <div className="flex gap-3">
-          <button type="button" onClick={() => { hasCalled.current = false; setPhase('loading'); setProgress(0); setLoadingMsg(0) }}
-            className="flex-1 py-3 rounded-xl border border-gray-200 text-[13px] text-gray-600 hover:bg-gray-50">
-            Réessayer
-          </button>
-          <button type="button" onClick={() => navigate('/bloc1')}
-            className="flex-1 py-3 rounded-xl bg-[#185FA5] text-white text-[13px] font-semibold hover:bg-[#0C447C]">
-            Retour au profil
-          </button>
+  const handleRetry = () => { hasCalled.current = false; setPhase('loading'); setProgress(0); setLoadingMsg(0) }
+
+  if (phase === 'error') return (
+    <ErrorState
+      errorMsg={errorMsg}
+      onRetry={handleRetry}
+      onMetrics={preCalc ? () => setPhase('metrics') : null}
+    />
+  )
+
+  if (phase === 'metrics' && preCalc) {
+    const c = preCalc
+    return (
+      <div className="min-h-screen bg-[#F8F8F6]">
+        <div className="max-w-4xl mx-auto px-8 py-10 pb-16 space-y-6">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 flex items-start gap-3">
+            <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-[12px] text-amber-800 leading-relaxed">
+              <strong>Analyse IA indisponible.</strong> Voici uniquement vos métriques calculées localement.
+              Les recommandations personnalisées ne sont pas disponibles.
+            </p>
+          </div>
+
+          <div>
+            <h1 className="text-[26px] font-bold text-gray-900 tracking-tight">Vos métriques patrimoniales</h1>
+            <p className="text-[13px] text-gray-400 mt-1">Calculées depuis vos données — sans analyse IA</p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <MetricCard label="Patrimoine net" value={`${fmt(c.patrimoineNet)} €`}
+              sub={c.totalDettes > 0 ? `Dettes : ${fmt(c.totalDettes)} €` : 'Sans dettes'}
+              color={c.patrimoineNet >= 0 ? 'blue' : 'red'} />
+            <MetricCard label="Capacité d'épargne" value={`${fmt(c.capaciteEpargne)} €/mois`}
+              sub={`Revenus : ${fmt(c.totalRev)} €/mois`}
+              color={c.capaciteEpargne > 500 ? 'green' : c.capaciteEpargne > 0 ? 'amber' : 'red'} />
+            <MetricCard label="Taux d'endettement" value={`${c.tauxEndettement}%`}
+              sub={c.tauxEndettement < 33 ? 'Niveau sain' : c.tauxEndettement < 40 ? 'Limite acceptable' : 'Trop élevé'}
+              color={c.tauxEndettement < 33 ? 'green' : c.tauxEndettement < 40 ? 'amber' : 'red'} />
+          </div>
+
+          {c.tmi > 0 && (
+            <div className="grid grid-cols-3 gap-3">
+              <MetricCard label="Tranche d'imposition" value={`${c.tmi}%`}
+                sub={`Taux réel moyen : ${c.tauxMoyen}%`} color="blue" />
+              <MetricCard label="Impôts annuels" value={`${fmt(c.pressionFiscale)} €`}
+                sub={`Soit ${fmt(Math.round(c.pressionFiscale / 12))} €/mois`} color="amber" />
+              {c.economiePer > 0 && (
+                <MetricCard label="Économie possible (PER)" value={`${fmt(c.economiePer)} €/an`}
+                  sub="Via versements déductibles" color="green" />
+              )}
+            </div>
+          )}
+
+          {c.anneesAvantRetraite > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+              <p className="text-[13px] font-semibold text-gray-800">Simulation retraite</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Départ dans</p>
+                  <p className="text-[22px] font-bold text-[#185FA5]">{c.anneesAvantRetraite} ans</p>
+                  <p className="text-[11px] text-gray-400">à {c.ageDepart} ans</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Déficit mensuel estimé</p>
+                  <p className={`text-[22px] font-bold ${c.deficitMensuel > 0 ? 'text-amber-600' : 'text-[#0F6E56]'}`}>
+                    {c.deficitMensuel > 0 ? `${fmt(c.deficitMensuel)} €/mois` : 'Objectif atteint'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2.5 pt-2">
+            <button type="button" onClick={handleRetry}
+              className="w-full py-3 rounded-xl bg-[#185FA5] text-white text-[13px] font-semibold hover:bg-[#0C447C] transition-colors">
+              Réessayer l'analyse IA
+            </button>
+            <button type="button" onClick={() => navigate('/start')}
+              className="w-full py-3 rounded-xl border border-gray-200 text-[13px] text-gray-500 hover:bg-gray-50 transition-colors">
+              Retour à l'accueil
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    )
+  }
+
+  if (!result || !preCalc) return (
+    <ErrorState errorMsg={errorMsg} onRetry={handleRetry} onMetrics={null} />
   )
 
   const r = result
@@ -449,7 +627,7 @@ export default function Analyse() {
         variants={sectionVariants}
         initial="hidden"
         animate="show"
-        className="max-w-4xl mx-auto px-8 py-10 pb-16 space-y-6"
+        className="max-w-4xl mx-auto px-8 py-10 pb-24 space-y-6"
       >
 
         {/* ── Bloc Armand — EN HAUT, bien visible ── */}
@@ -504,13 +682,13 @@ export default function Analyse() {
         <motion.div variants={sectionItem} className="grid grid-cols-3 gap-3">
           <MetricCard
             label="Patrimoine net"
-            value={`${fmt(c.patrimoineNet)} €`}
+            value={`${fmt(animPatrimoineNet)} €`}
             sub={c.totalDettes > 0 ? `Dettes : ${fmt(c.totalDettes)} €` : 'Sans dettes'}
             color={c.patrimoineNet >= 0 ? 'blue' : 'red'}
           />
           <MetricCard
             label="Capacité d'épargne"
-            value={`${fmt(c.capaciteEpargne)} €/mois`}
+            value={`${fmt(animCapaciteEpargne)} €/mois`}
             sub={`Revenus : ${fmt(c.totalRev)} €/mois`}
             color={c.capaciteEpargne > 500 ? 'green' : c.capaciteEpargne > 0 ? 'amber' : 'red'}
           />
@@ -579,10 +757,10 @@ export default function Analyse() {
         {/* ── Score + phrase bilan ── */}
         <motion.div variants={sectionItem} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center gap-8 mb-4">
-            <ScoreGauge score={r.score_global} />
+            <ScoreGauge score={animScoreGlobal} />
             <div>
               <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Score global</p>
-              <p className={`text-[32px] font-bold ${scoreColor}`}>{r.score_global}<span className="text-[18px] text-gray-400 font-normal">/100</span></p>
+              <p className={`text-[32px] font-bold ${scoreColor}`}>{animScoreGlobal}<span className="text-[18px] text-gray-400 font-normal">/100</span></p>
               <p className="text-[13px] text-gray-600 mt-1 max-w-sm">{r.commentaire_global}</p>
             </div>
           </div>
@@ -754,6 +932,10 @@ export default function Analyse() {
           <button type="button" onClick={() => navigate('/start')}
             className="w-full py-3 rounded-xl border border-gray-200 text-[13px] text-gray-500 hover:bg-gray-50 transition-colors">
             Modifier mon profil
+          </button>
+          <button type="button" onClick={() => { localStorage.removeItem('patrisim_analyse'); navigate('/start') }}
+            className="w-full py-3 rounded-xl border border-gray-200 text-[13px] text-gray-400 hover:bg-gray-50 transition-colors">
+            Refaire une simulation
           </button>
           <p className="text-[11px] text-gray-400 text-center leading-relaxed px-4">
             PatriSim est un outil de simulation pédagogique. Les résultats sont des estimations et ne constituent pas un conseil en investissement.

@@ -236,6 +236,30 @@ export default function Landing() {
         </div>
       </section>
 
+      {import.meta.env.DEV && (
+        <div style={{margin: '40px auto', maxWidth: 800, padding: '20px', border: '2px dashed #444', borderRadius: 16, background: '#0d1117'}}>
+          <span style={{background: 'red', color: 'white', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 'bold'}}>DEV ONLY</span>
+          <p style={{color: '#aaa', marginTop: 8, fontSize: 13}}>Espace développeur</p>
+          <button onClick={() => {
+            const fakeResult = JSON.stringify({
+              score_global: 72,
+              patrimoine_net: 250000,
+              capacite_epargne: 800,
+              points_forts: ["Bonne capacité d'épargne", "Patrimoine immobilier solide"],
+              points_attention: ["Taux d'endettement à surveiller"],
+              recommandations: [
+                {titre: "Optimiser votre PER", description: "Versement annuel recommandé : 3 000 €", urgence: "haute", gain_estime: 900},
+                {titre: "Diversifier l'épargne", description: "Ouvrir un PEA pour les UC", urgence: "moyenne", gain_estime: 0}
+              ]
+            });
+            localStorage.setItem('patrisim_analyse', fakeResult);
+            window.location.href = '/analyse';
+          }} style={{marginTop: 12, padding: '10px 20px', background: '#185FA5', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13}}>
+            Accéder à l'analyse (sans IA)
+          </button>
+        </div>
+      )}
+
       {/* Footer */}
       <footer className="border-t border-white/5 py-8 px-8">
         <div className="max-w-4xl mx-auto flex items-center justify-between">

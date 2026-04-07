@@ -27,20 +27,6 @@ function loadState(): Bloc0State {
   }
 }
 
-export function getBlocsRequired(objectif: ModuleKey | null, niveau: 'rapide' | 'complet'): number[] {
-  if (!objectif || objectif === 'bilan') return [1, 2, 3, 4, 5, 6, 7]
-  const blocs = new Set<number>([1])
-  if (objectif === 'retraite')    { blocs.add(4); blocs.add(5) }
-  if (objectif === 'fiscalite')   { blocs.add(2); blocs.add(3); blocs.add(4) }
-  if (objectif === 'succession')  { blocs.add(2); blocs.add(7) }
-  if (niveau === 'complet') {
-    if (blocs.has(4)) blocs.add(3)
-    if (blocs.has(5)) blocs.add(4)
-    if (blocs.has(7)) blocs.add(2)
-  }
-  return Array.from(blocs).sort()
-}
-
 // ─── Modules ──────────────────────────────────────────────────────────────────
 
 const MODULES: {
