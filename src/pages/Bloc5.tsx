@@ -137,6 +137,17 @@ function capitalFuteur(mensuel: number, taux: number, annees: number): number {
   return mensuel * ((Math.pow(1 + r, n) - 1) / r)
 }
 
+function tauxRemplacementParStatut(statut: string): { taux: number; label: string } {
+  const s = (statut || '').toLowerCase()
+  if (s.includes('fonctionnaire') || s.includes('état') || s.includes('territorial') || s.includes('hospitalier'))
+    return { taux: 0.75, label: 'fonctionnaire (75% revenus nets)' }
+  if (s.includes('chef') || s.includes('tns') || s.includes('indépendant') || s.includes('libéral') || s.includes('artisan') || s.includes('gérant'))
+    return { taux: 0.45, label: 'TNS / indépendant (45% revenus nets)' }
+  if (s.includes('retraité'))
+    return { taux: 1.0, label: 'retraité (pension déjà en cours)' }
+  return { taux: 0.62, label: 'salarié privé (62% revenus nets — moyenne 2026)' }
+}
+
 // TMI barème 2025 à partir du revenu net annuel imposable (1 foyer, 1 part)
 function tmiFromRevenuAnnuel(revenuAnnuelNet: number): number {
   const ri = revenuAnnuelNet * 0.9 // abattement 10% pensions
@@ -310,10 +321,10 @@ function PersonneBadge({ label, isP2 }: { label: string; isP2?: boolean }) {
 
 // ─── RetraiteCard ─────────────────────────────────────────────────────────────
 
-function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusMensuel, errorAge, isRapide, tmiEntree }: {
+function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusMensuel, statut, errorAge, isRapide, tmiEntree }: {
   retraite: RetraitePersonne; onChange: (r: RetraitePersonne) => void
   tmiEntree?: number
-  label: string; isP2?: boolean; dateNaissance?: string; revenusMensuel: number; errorAge?: string; isRapide?: boolean
+  label: string; isP2?: boolean; dateNaissance?: string; revenusMensuel: number; statut?: string; errorAge?: string; isRapide?: boolean
 }) {
   const upd = <K extends keyof RetraitePersonne>(k: K, v: RetraitePersonne[K]) => onChange({ ...retraite, [k]: v })
   const age = dateNaissance ? ageActuel(dateNaissance) : null
@@ -323,7 +334,8 @@ function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusM
 
   const pensionBrute = parseNum(retraite.pensionBase) + (retraite.aComplementaire ? parseNum(retraite.pensionComplementaire) : 0)
   const pensionNette = Math.round(pensionBrute * 0.83)
-  const pensionAuto = Math.round(revenusMensuel * 0.5)
+  const { taux: txRemplt, label: txLabel } = tauxRemplacementParStatut(statut || '')
+  const pensionAuto = Math.round(revenusMensuel * txRemplt)
 
   const pensionEffective = retraite.pensionConnue ? pensionNette : pensionAuto
   const gap = retraite.revenusCibles - pensionEffective
@@ -425,7 +437,8 @@ function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusM
       ) : (
         <InfoCard color="amber">
           <p className="font-semibold mb-1">Estimation automatique</p>
-          <p>Pension estimée : ~<strong>{fmt(pensionAuto)} €/mois</strong> (50% revenus actuels)</p>
+          <p>Pension estimée : ~<strong>{fmt(pensionAuto)} €/mois</strong></p>
+          <p className="text-[11px] mt-1 opacity-80">Taux de remplacement : <strong>{Math.round(txRemplt * 100)}%</strong> — {txLabel}</p>
           {!isRapide && <p className="text-[11px] mt-1 opacity-70">Consultez info-retraite.fr pour une simulation personnalisée.</p>}
         </InfoCard>
       )}
@@ -504,6 +517,26 @@ function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusM
                     <Input value={retraite.perVersementMensuel} onChange={v => upd('perVersementMensuel', v)} placeholder="200" suffix="€/mois" />
                   </Field>
                 </div>
+                {(() => {
+                  const revAnnuel = revenusMensuel * 12
+                  const plafond = Math.min(revAnnuel * 0.10, 35194)
+                  const versAnnuel = parseNum(retraite.perVersementMensuel) * 12
+                  const restant = Math.max(0, plafond - versAnnuel)
+                  return (
+                    <InfoCard color={versAnnuel >= plafond ? 'green' : 'blue'}>
+                      <p className="font-semibold mb-1">Plafond PER 2026</p>
+                      <p>Plafond disponible : <strong>{fmt(Math.round(plafond))} €/an</strong> <span className="opacity-70">(10 % revenus N-1, max 35 194 €)</span></p>
+                      {versAnnuel > 0 && (
+                        <p className="mt-1">
+                          {restant > 0
+                            ? <>Marge disponible : <strong>{fmt(Math.round(restant))} €/an</strong></>
+                            : <strong>Plafond annuel atteint</strong>}
+                        </p>
+                      )}
+                      <p className="text-[11px] mt-1 opacity-70">Les plafonds non utilisés des 3 dernières années sont reportables.</p>
+                    </InfoCard>
+                  )
+                })()}
 
                 <Field label="Mode de sortie prévu">
                   <Chips
@@ -580,6 +613,34 @@ function RetraiteCard({ retraite, onChange, label, isP2, dateNaissance, revenusM
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── PER vs AV (si TMI >= 30%) ─────────────────────────── */}
+            {(tmiEntree ?? 0) >= 30 && (
+              <div className="pt-4 border-t border-gray-100 space-y-3">
+                <p className="text-[12px] font-bold text-gray-700 uppercase tracking-wider">PER vs Assurance-vie — votre profil</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-[#E6F1FB] rounded-xl p-3 space-y-1.5">
+                    <p className="text-[11px] font-bold text-[#0C447C] uppercase tracking-wider">PER</p>
+                    <p className="text-[12px] text-[#0C447C]">✓ Déduction fiscale à l'entrée (TMI {tmiEntree}%)</p>
+                    <p className="text-[12px] text-[#0C447C]">✗ Imposé à la sortie (TMI retraite)</p>
+                    <p className="text-[12px] text-[#0C447C]">✗ Capital bloqué jusqu'à la retraite</p>
+                  </div>
+                  <div className="bg-[#E1F5EE] rounded-xl p-3 space-y-1.5">
+                    <p className="text-[11px] font-bold text-[#085041] uppercase tracking-wider">Assurance-vie</p>
+                    <p className="text-[12px] text-[#085041]">✗ Aucun avantage fiscal à l'entrée</p>
+                    <p className="text-[12px] text-[#085041]">✓ Fiscalité douce après 8 ans (7,5 % + PS)</p>
+                    <p className="text-[12px] text-[#085041]">✓ Capital disponible à tout moment</p>
+                  </div>
+                </div>
+                <InfoCard color={(tmiEntree ?? 0) >= 41 ? 'blue' : 'green'}>
+                  <p className="font-semibold mb-1">Recommandation pour votre TMI ({tmiEntree}%)</p>
+                  {(tmiEntree ?? 0) >= 41
+                    ? <p>TMI à {tmiEntree}% : le PER est très avantageux. L'économie à l'entrée compense largement l'imposition à la sortie. Privilégiez le PER pour la retraite, l'assurance-vie pour la transmission.</p>
+                    : <p>À {tmiEntree}% de TMI, le PER reste intéressant si votre TMI à la retraite sera plus faible. Si vos revenus restent élevés à la retraite, l'assurance-vie offre plus de souplesse.</p>
+                  }
+                </InfoCard>
               </div>
             )}
           </div>
@@ -692,6 +753,8 @@ export default function Bloc5() {
 
   const p1Data = loadFromStorage<{ prenom?: string; dateNaissance?: string }>('patrisim_bloc1_p1', {})
   const p2Data = loadFromStorage<{ prenom?: string; dateNaissance?: string }>('patrisim_bloc1_p2', {})
+  const pro1Data = loadFromStorage<{ statut?: string }>('patrisim_bloc1_pro1', {})
+  const pro2Data = loadFromStorage<{ statut?: string }>('patrisim_bloc1_pro2', {})
   const p1Label = p1Data.prenom?.trim() || 'Personne 1'
   const p2Label = p2Data.prenom?.trim() || 'Personne 2'
   const bloc1Mode = loadFromStorage<{ v?: string }>('patrisim_bloc1_mode', {}).v || 'seul'
@@ -744,11 +807,11 @@ export default function Bloc5() {
 
   const pensionNettP1 = state.retraiteP1.pensionConnue
     ? Math.round((parseNum(state.retraiteP1.pensionBase) + (state.retraiteP1.aComplementaire ? parseNum(state.retraiteP1.pensionComplementaire) : 0)) * 0.83)
-    : Math.round(revenuP1Mensuel * 0.5)
+    : Math.round(revenuP1Mensuel * tauxRemplacementParStatut(pro1Data.statut || '').taux)
 
   const pensionNettP2 = isCouple ? (state.retraiteP2.pensionConnue
     ? Math.round((parseNum(state.retraiteP2.pensionBase) + (state.retraiteP2.aComplementaire ? parseNum(state.retraiteP2.pensionComplementaire) : 0)) * 0.83)
-    : Math.round(revenuP2Mensuel * 0.5)) : 0
+    : Math.round(revenuP2Mensuel * tauxRemplacementParStatut(pro2Data.statut || '').taux)) : 0
 
   // Capacité calculée depuis Bloc 4 (non stockée, toujours à jour)
   const revenusTotaux = revenuP1Mensuel + revenuP2Mensuel
@@ -771,25 +834,35 @@ export default function Bloc5() {
 
   const repartTotal = state.repartition.precaution + state.repartition.projetsCT + state.repartition.retraite + state.repartition.transmission
 
-  // Projection chart data (complet uniquement)
+  const INFLATION = 0.02
+
+  // Projection chart data — 3 scénarios + valeur réelle (complet uniquement)
   const chartData = (() => {
     if (isRapide) return []
     const data = []
     const today = new Date().getFullYear()
     const retraiteAn = today + (annesAvantP1 ?? 20)
     const espVie = retraiteAn + 25
-    let capital = capitalInitial  // part du capital existant
+    let cap2 = capitalInitial, cap4 = capitalInitial, cap6 = capitalInitial
+    const deficit = Math.max(0, (state.retraiteP1.revenusCibles - pensionNettP1 + (isCouple ? state.retraiteP2.revenusCibles - pensionNettP2 : 0)))
     for (let year = today; year <= espVie; year++) {
+      const elapsed = year - today
       if (year < retraiteAn) {
-        capital = capital * 1.04 + totalEpargne * 12
+        cap2 = cap2 * 1.02 + totalEpargne * 12
+        cap4 = cap4 * 1.04 + totalEpargne * 12
+        cap6 = cap6 * 1.06 + totalEpargne * 12
       } else {
-        const deficit = Math.max(0, (state.retraiteP1.revenusCibles - pensionNettP1 + (isCouple ? state.retraiteP2.revenusCibles - pensionNettP2 : 0)))
-        capital = Math.max(0, capital - deficit * 12)
-        capital *= 1.03
+        cap2 = Math.max(0, cap2 - deficit * 12) * 1.015
+        cap4 = Math.max(0, cap4 - deficit * 12) * 1.025
+        cap6 = Math.max(0, cap6 - deficit * 12) * 1.035
       }
+      const deflateur = Math.pow(1 + INFLATION, elapsed)
       data.push({
         annee: year,
-        capitalProjecte: Math.round(capital),
+        pessimiste: Math.round(cap2),
+        median: Math.round(cap4),
+        optimiste: Math.round(cap6),
+        reel: Math.round(cap4 / deflateur),
         objectif: parseNum(state.retraiteP1.patrimoineCouvrir) || undefined,
       })
     }
@@ -833,16 +906,16 @@ export default function Bloc5() {
           <div className="grid grid-cols-2 gap-4 mb-8">
             <RetraiteCard retraite={state.retraiteP1} onChange={r => upd('retraiteP1', r)}
               label={p1Label} isP2={false} dateNaissance={p1Data.dateNaissance}
-              revenusMensuel={revenuP1Mensuel} errorAge={errors.revenusCiblesP1} isRapide={isRapide} tmiEntree={tmiEntree} />
+              revenusMensuel={revenuP1Mensuel} statut={pro1Data.statut} errorAge={errors.revenusCiblesP1} isRapide={isRapide} tmiEntree={tmiEntree} />
             <RetraiteCard retraite={state.retraiteP2} onChange={r => upd('retraiteP2', r)}
               label={p2Label} isP2 dateNaissance={p2Data.dateNaissance}
-              revenusMensuel={revenuP2Mensuel} errorAge={errors.revenusCiblesP2} isRapide={isRapide} tmiEntree={tmiEntree} />
+              revenusMensuel={revenuP2Mensuel} statut={pro2Data.statut} errorAge={errors.revenusCiblesP2} isRapide={isRapide} tmiEntree={tmiEntree} />
           </div>
         ) : (
           <div className="mb-8">
             <RetraiteCard retraite={state.retraiteP1} onChange={r => upd('retraiteP1', r)}
               label={p1Label} isP2={false} dateNaissance={p1Data.dateNaissance}
-              revenusMensuel={revenuP1Mensuel} errorAge={errors.revenusCiblesP1} isRapide={isRapide} tmiEntree={tmiEntree} />
+              revenusMensuel={revenuP1Mensuel} statut={pro1Data.statut} errorAge={errors.revenusCiblesP1} isRapide={isRapide} tmiEntree={tmiEntree} />
           </div>
         )}
         </FadeIn>
@@ -1105,24 +1178,36 @@ export default function Bloc5() {
                   </div>
                 )}
 
-                {/* Graphique projection */}
+                {/* Graphique projection — 3 scénarios */}
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <p className="text-[13px] font-semibold text-gray-800 mb-4">Projection du capital dans le temps</p>
-                  <ResponsiveContainer width="100%" height={260}>
+                  <p className="text-[13px] font-semibold text-gray-800 mb-1">Projection du capital dans le temps</p>
+                  <p className="text-[11px] text-gray-400 mb-4">(hypothèses de rendement, non garanties)</p>
+                  <ResponsiveContainer width="100%" height={280}>
                     <LineChart data={chartData} margin={{ left: 10, right: 10 }}>
                       <XAxis dataKey="annee" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${fmt(v / 1000)}k`} />
                       <Tooltip formatter={(v: number) => `${fmt(v)} €`} />
-                      <Legend />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
                       {annesAvantP1 !== null && (
                         <ReferenceLine x={new Date().getFullYear() + annesAvantP1} stroke="#185FA5" strokeDasharray="4 2" label={{ value: 'Retraite', fontSize: 10, fill: '#185FA5' }} />
                       )}
-                      <Line type="monotone" dataKey="capitalProjecte" stroke="#185FA5" strokeWidth={2} dot={false} name="Capital projeté" />
+                      <Line type="monotone" dataKey="pessimiste" stroke="#DC2626" strokeWidth={1.5} strokeDasharray="5 3" dot={false} name="Pessimiste (2%/an)" />
+                      <Line type="monotone" dataKey="median" stroke="#185FA5" strokeWidth={2.5} dot={false} name="Médian (4%/an)" />
+                      <Line type="monotone" dataKey="optimiste" stroke="#0F6E56" strokeWidth={1.5} strokeDasharray="5 3" dot={false} name="Optimiste (6%/an)" />
+                      <Line type="monotone" dataKey="reel" stroke="#9CA3AF" strokeWidth={1.5} strokeDasharray="3 4" dot={false} name="Valeur réelle (inflation 2%)" />
                       {state.retraiteP1.patrimoineCouvrir && (
-                        <Line type="monotone" dataKey="objectif" stroke="#0F6E56" strokeWidth={1.5} strokeDasharray="6 3" dot={false} name="Objectif retraite" />
+                        <Line type="monotone" dataKey="objectif" stroke="#D97706" strokeWidth={1.5} strokeDasharray="6 3" dot={false} name="Objectif patrimoine" />
                       )}
                     </LineChart>
                   </ResponsiveContainer>
+                  {chartData.length > 0 && (() => {
+                    const last = chartData[chartData.length - 1]
+                    return (
+                      <InfoCard color="amber">
+                        💡 En tenant compte d'une inflation de 2 %/an, votre capital médian de <strong>{fmt(last.median ?? 0)} €</strong> représente environ <strong>{fmt(last.reel ?? 0)} €</strong> en euros d'aujourd'hui. Cette hypothèse d'inflation est indicative.
+                      </InfoCard>
+                    )
+                  })()}
                 </div>
               </>
             )}
