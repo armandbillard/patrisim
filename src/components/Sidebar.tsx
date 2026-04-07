@@ -122,7 +122,7 @@ export default function Sidebar({ currentStep }: SidebarProps) {
       )}
       {/* Logo */}
       <div className="px-5 py-5 border-b border-gray-50">
-        <button type="button" onClick={() => navigate('/start')}
+        <button type="button" onClick={() => navigate('/')}
           className="text-[20px] font-bold text-gray-900 hover:opacity-80 transition-opacity">
           Patri<span className="text-[#185FA5]">Sim</span>
         </button>
@@ -203,8 +203,8 @@ export default function Sidebar({ currentStep }: SidebarProps) {
           Réinitialiser mes données
         </button>
         <div className="text-[10px] text-gray-400 text-center leading-relaxed px-1">
-          Outil pédagogique · Patrimoine &lt; 500 000 €<br />
-          Ne remplace pas un CGP agréé
+          Outil pédagogique<br />
+          Ne remplace pas un conseiller agréé
         </div>
         <div className="flex items-center justify-center gap-1.5 text-[10px] text-gray-300">
           <div className="w-1.5 h-1.5 rounded-full bg-green-400" />

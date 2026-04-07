@@ -487,29 +487,12 @@ export default function Analyse() {
   }, [])
 
   if (phase === 'loading') return (
-    <div className="min-h-screen bg-[#F8F8F6] flex flex-col items-center justify-center px-8">
-      <div className="max-w-md w-full text-center space-y-8">
-        <div>
-          <span className="text-[28px] font-bold text-gray-900">Patri<span className="text-[#185FA5]">Sim</span></span>
-          <p className="text-[12px] text-gray-400 mt-1">Analyse en cours</p>
-        </div>
-        <ScoreGauge score={Math.round(progress)} />
-        <div className="space-y-2">
-          <p className="text-[16px] font-semibold text-gray-800">{LOADING_MESSAGES[loadingMsg]}</p>
-          <p className="text-[12px] text-gray-400">Environ 15 secondes</p>
-        </div>
-        <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-          <div className="h-full bg-[#185FA5] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
-        </div>
-        <div className="space-y-1.5">
-          {LOADING_MESSAGES.map((msg, i) => (
-            <div key={i} className={`flex items-center gap-2 text-[12px] ${i <= loadingMsg ? 'text-gray-700' : 'text-gray-300'}`}>
-              <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${i < loadingMsg ? 'bg-[#0F6E56]' : i === loadingMsg ? 'bg-[#185FA5] animate-pulse' : 'bg-gray-200'}`}>
-                {i < loadingMsg && <CheckCircle size={10} className="text-white" />}
-              </div>
-              {msg}
-            </div>
-          ))}
+    <div className="min-h-screen bg-[#F8F8F6] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-6">
+        <div className="w-12 h-12 border-[3px] border-[#185FA5] border-t-transparent rounded-full animate-spin" />
+        <div className="text-center space-y-2">
+          <p className="text-[15px] font-semibold text-gray-800">Analyse en cours...</p>
+          <p className="text-[13px] text-gray-400">Cela prend 15 à 30 secondes</p>
         </div>
       </div>
     </div>
