@@ -67,7 +67,6 @@ interface AIResult {
   probabilite_succes: number
   situation_actuelle: string
   gap_analyse: string
-  plan_action: { etape: number; action: string; delai: string; impact: string; priorite: string }[]
   recommandations: { titre: string; description: string; urgence: string; gain_estime: number }[]
   alertes: { niveau: string; message: string; action: string }[]
 }
@@ -123,10 +122,11 @@ function computePreCalculations() {
   const totalDettes = (b3.creditsImmo || []).reduce((a, c) => a + parseNum(c.crd), 0) + (b3.creditsConso || []).reduce((a, c) => a + parseNum(c.crd), 0)
   const patrimoineNet = patrimoineBrut - totalDettes
 
-  const b4 = bloc4 as { p1Pro?: {salaire?: string; remunNette?: string}; p2Pro?: {salaire?: string}; mensualitesCredits?: string; assurances?: string; abonnements?: string; loyerMensuel?: string; fiscal?: {tmi?: number; rfr?: string; impotNet?: string; prelevementsSociaux?: string}; depenses?: {montant?: string; pct?: string; mode?: string}[] }
+  const b4 = bloc4 as { p1Pro?: {salaire?: string; remunNette?: string}; p2Pro?: {salaire?: string}; revenusFonciersB?: string; revenusFinanciers?: string; aPension?: boolean; pensionMontant?: string; mensualitesCredits?: string; assurances?: string; abonnements?: string; loyerMensuel?: string; fiscal?: {tmi?: number; rfr?: string; impotNet?: string; prelevementsSociaux?: string}; depenses?: {montant?: string; pct?: string; mode?: string}[] }
   const revP1 = parseNum(b4.p1Pro?.salaire || b4.p1Pro?.remunNette)
   const revP2 = parseNum(b4.p2Pro?.salaire)
-  const totalRev = revP1 + revP2
+  const revenusPatrimoniaux = parseNum(b4.revenusFonciersB) / 12 + parseNum(b4.revenusFinanciers) / 12
+  const totalRev = revP1 + revP2 + revenusPatrimoniaux
   // Utilise le tableau depenses (somme de toutes les catégories) si disponible,
   // sinon fallback sur les 4 champs séparés (anciens profils sans depenses)
   const depensesList = b4.depenses || []
@@ -135,10 +135,13 @@ function computePreCalculations() {
     if (d.mode === 'pct' && d.pct) return sum + Math.round(totalRev * parseFloat(d.pct) / 100)
     return sum
   }, 0)
-  const totalCharges = depensesTotal > 0
+  const pensionAlimentaire = b4.aPension ? parseNum(b4.pensionMontant) : 0
+  const totalCharges = (depensesTotal > 0
     ? depensesTotal
     : parseNum(b4.mensualitesCredits) + parseNum(b4.assurances) + parseNum(b4.abonnements) + parseNum(b4.loyerMensuel)
+  ) + pensionAlimentaire
   const capaciteEpargne = Math.max(0, totalRev - totalCharges)
+  console.log('Capacité épargne:', capaciteEpargne, '| Revenus:', totalRev, '| Charges:', totalCharges)
 
   const tmi = (b4.fiscal as Record<string,number>)?.tmi || 0
   const ir = parseNum((b4.fiscal as Record<string,string>)?.impotNet)
@@ -277,7 +280,7 @@ function buildCompressedData(preCalc: ReturnType<typeof computePreCalculations>)
     patrimoine_net: preCalc.patrimoineNet,
     total_dettes: preCalc.totalDettes,
     revenus_mensuels: preCalc.totalRev,
-    capacite_epargne: preCalc.capaciteEpargne,
+    capacite_epargne_mensuelle: preCalc.capaciteEpargne,
     taux_endettement: preCalc.tauxEndettement,
     tmi: preCalc.tmi,
     taux_moyen: preCalc.tauxMoyen,
@@ -296,6 +299,12 @@ function buildCompressedData(preCalc: ReturnType<typeof computePreCalculations>)
     credits_fin_proches: creditsFinProches,
     assurances_vie: avsAvecAge,
     tmi_retraite_estimee: preCalc.tmiRetraite,
+    simulation_per_capital_net: preCalc.netPER,
+    simulation_av_capital_net: preCalc.netAV,
+    per_vs_av_recommande: preCalc.perVsAvRecommande,
+    ratio_couverture_retraite: preCalc.capitalNecessaire > 0
+      ? Math.round(preCalc.capitalProjecte / preCalc.capitalNecessaire * 100) / 100
+      : null,
   }
 }
 
@@ -334,12 +343,17 @@ async function callAPI(data: ReturnType<typeof buildCompressedData>): Promise<AI
   const tmi = data.tmi
   const mode = data.mode === 'couple' ? 'vouvoiement' : 'tutoiement'
 
-  const systemPrompt = `RÈGLES ABSOLUES :
+  const systemPrompt = `DONNÉES FIGÉES — NE PAS RECALCULER :
+La capacité d'épargne mensuelle est exactement ${data.capacite_epargne_mensuelle} €. N'utilise JAMAIS une autre valeur.
+Les capitaux PER/AV nets sont : PER = ${data.simulation_per_capital_net} €, AV = ${data.simulation_av_capital_net} €.
+
+RÈGLES ABSOLUES :
 - Réponds UNIQUEMENT en JSON valide, aucun texte avant ou après
 - Pas de backticks, pas de markdown, pas de commentaires
 - Tous les montants en euros sont des nombres entiers (pas de décimales)
-- Maximum 3 recommandations, triées par urgence décroissante (immediate en premier)
+- Maximum 3 recommandations, triées par urgence décroissante (haute en premier)
 - Chaque recommandation doit avoir : titre (max 8 mots), description (max 25 mots), urgence, gain_estime (nombre entier)
+- urgence = UNIQUEMENT "haute", "moyenne" ou "faible" — aucune autre valeur acceptée
 - points_forts : exactement 3 éléments, max 10 mots chacun
 - points_attention : exactement 2 éléments, max 10 mots chacun
 - Zéro jargon financier : pas de MiFID, AGIRC-ARRCO, flat tax, arbitrage
@@ -351,14 +365,29 @@ Ta mission : écrire une synthèse humaine et des recommandations concrètes.
 
 RÈGLES DE COHÉRENCE OBLIGATOIRES :
 
-1. CAPACITÉ D'ÉPARGNE : utilise UNIQUEMENT la valeur capacite_epargne fournie dans les données.
-   Ne jamais la recalculer ni l'estimer différemment.
+1. CAPACITÉ D'ÉPARGNE — RÈGLE ABSOLUE : utilise UNIQUEMENT la valeur capacite_epargne_mensuelle fournie dans les données.
+   Ne jamais la recalculer, l'estimer, ou mentionner une valeur différente.
+   Toute valeur différente de capacite_epargne_mensuelle dans ta réponse est une erreur grave.
 
 2. PRIORISATION DES RECOMMANDATIONS :
-   - urgence 'immediate' = impact financier > 3 000 €/an OU risque de perte important
-   - urgence 'court_terme' = impact 500-3 000 €/an
-   - urgence 'moyen_terme' = impact < 500 €/an ou amélioration de confort
-   Les recommandations DOIVENT être triées : immediate d'abord, puis court_terme, puis moyen_terme.
+   - urgence 'haute' = impact financier > 3 000 €/an OU risque de perte important
+   - urgence 'moyenne' = impact 500-3 000 €/an
+   - urgence 'faible' = impact < 500 €/an ou amélioration de confort
+   Les recommandations DOIVENT être triées : haute d'abord, puis moyenne, puis faible.
+   Ne jamais utiliser "immediate", "court_terme" ou "moyen_terme" — ce sont des valeurs invalides.
+
+2b. COUVERTURE RETRAITE :
+   Le champ ratio_couverture_retraite = capital_projete / capital_necessaire_retraite est fourni.
+   Si ratio_couverture_retraite > 1.5 (ou capital_necessaire_retraite = 0) :
+   → Supprimer TOUT discours alarmiste sur la retraite.
+   → Message positif : "Votre retraite est bien engagée." Focus sur optimisation et transmission.
+   → Ne pas créer de recommandation urgence 'haute' liée à la retraite.
+   Si ratio_couverture_retraite entre 0.8 et 1.5 :
+   → Message neutre : "Votre retraite nécessite un effort d'épargne régulier."
+   → Recommandation urgence 'moyenne' maximum.
+   Si ratio_couverture_retraite < 0.8 :
+   → Message d'alerte justifié avec solutions concrètes et chiffrées.
+   → Recommandation urgence 'haute' autorisée.
 
 3. GAINS ESTIMÉS :
    - gain_estime = économie ou gain ANNUEL en euros (entier)
@@ -370,7 +399,35 @@ RÈGLES DE COHÉRENCE OBLIGATOIRES :
    - Si pension inconnue : utiliser 62% des revenus actuels (moyenne française 2026)
      et préciser dans la description que c'est une estimation
 
-5. PER vs ASSURANCE-VIE : ${tmi >= 30 ? `TMI à ${tmi}% : comparer obligatoirement PER et assurance-vie dans les recommandations, expliquer laquelle privilégier et pourquoi` : `TMI < 30% : pas d'obligation de comparer PER et AV`}.
+5. PER vs ASSURANCE-VIE — RÈGLES OBLIGATOIRES :
+   Les capitaux nets PER et AV sont fournis en tête de ce prompt (valeurs figées).
+   SI simulation_av_capital_net > simulation_per_capital_net :
+   → La recommandation principale DOIT être l'AV.
+   → Le PER ne peut être mentionné qu'en urgence faible et en complément.
+   → INTERDIT de classer le PER en haute ou moyenne urgence.
+   → Inclure obligatoirement dans la description : "Dans votre situation, l'assurance-vie ressort plus avantageuse que le PER en capital net après impôt (${data.simulation_av_capital_net} € vs ${data.simulation_per_capital_net} €)."
+   SI simulation_per_capital_net > simulation_av_capital_net ET écart TMI >= 10 :
+   → PER recommandé en priorité haute ou moyenne.
+   → Mentionner l'économie nette réelle (économie entrée − impôt sortie).
+   NE JAMAIS recommander une stratégie moins performante que celle montrée par la simulation.
+
+   Calculer l'écart TMI = tmi - tmi_retraite_estimee, puis appliquer le cas correspondant :
+
+   CAS 1 — ecart_tmi >= 10 points (ex: 41% → 11%) :
+   → PER fortement recommandé. L'économie fiscale compense largement l'imposition sortie.
+   → urgence PER : haute si versement possible > 200 €/mois, sinon moyenne.
+
+   CAS 2 — ecart_tmi entre 5 et 9 points (ex: 30% → 11%) :
+   → PER recommandé en complément de l'AV. Priorité à l'AV pour la flexibilité.
+   → urgence PER : moyenne maximum.
+
+   CAS 3 — ecart_tmi < 5 points (ex: 30% → 30%) :
+   → Ne pas recommander PER comme priorité. AV = support principal obligatoire.
+   → PER : mention uniquement si épargne résiduelle. urgence PER : faible maximum.
+
+   CAS 4 — tmi < 30% :
+   → PER déconseillé sauf si plafonds très importants. AV et PEA prioritaires.
+   → Ne jamais classer PER en urgence haute.
 
 6. PROJECTIONS LONG TERME : pour toute projection sur plus de 5 ans,
    indiquer l'hypothèse de rendement utilisée (ex: 4 %/an)
@@ -382,7 +439,7 @@ RÈGLES DE COHÉRENCE OBLIGATOIRES :
    - Un même concept ne peut pas avoir deux valeurs différentes dans la même analyse
    - points_forts et points_attention ne doivent pas se contredire
    - Les recommandations ne peuvent pas contredire les points_forts
-   - Si le score_global est élevé (> 70), il ne peut pas y avoir plus d'une recommandation 'immediate'
+   - Si le score_global est élevé (> 70), il ne peut pas y avoir plus d'une recommandation urgence 'haute'
 
 INFLATION : mentionne systématiquement que les projections sont en euros courants et que l'inflation (hypothèse 2%/an) n'est pas intégrée dans les calculs. Rappelle que 100 000 € dans 20 ans équivaut à environ 67 000 € en pouvoir d'achat d'aujourd'hui.
 
@@ -402,7 +459,8 @@ Quand tu recommandes des versements PER, tu DOIS systématiquement préciser dan
 - L'économie fiscale à l'entrée (versement × TMI actuelle)
 - L'impôt estimé à la sortie en capital (versements × TMI retraite + gains × 30%)
 - Le gain net réel = économie entrée - impôt sortie
-- Si la TMI retraite (champ "tmi_retraite_estimee") >= TMI actuelle : déconseiller le PER et recommander l'AV à la place.
+- Si tmi_retraite_estimee >= tmi OU si simulation_av_capital_net > simulation_per_capital_net : déconseiller le PER et recommander l'AV à la place.
+- Appliquer impérativement les règles PER vs AV du point 5 ci-dessus.
 
 3. DÉTECTION FIN DE CRÉDIT :
 Si le champ "credits_fin_proches" contient des crédits (anneesRestantes < 5) :
@@ -423,10 +481,14 @@ Propose UNE action concrète parmi les suivantes selon l'âge de l'AV (champ "ag
 - Si ageAV >= 8 ans et profil Dynamique/Offensif : "Arbitrage vers UC recommandé selon votre profil [profil_investisseur]"
 Toujours chiffrer le gain_estime de l'action proposée.
 
-5. COHÉRENCE GLOBALE FINALE :
+5. RACHAT DE TRIMESTRES :
+Ne jamais donner un coût en pourcentage du revenu pour le rachat de trimestres.
+Utiliser uniquement : "Le coût d'un trimestre racheté est généralement compris entre 3 000 € et 7 000 €, selon votre âge et l'option choisie. Consultez votre caisse de retraite pour un chiffre précis."
+
+6. COHÉRENCE GLOBALE FINALE :
 Avant de générer la réponse, vérifie mentalement :
-- La somme des gain_estime est-elle cohérente avec la capacite_epargne annuelle ?
-- Les recommandations sont-elles triées par urgence décroissante (immediate d'abord) ?
+- La somme des gain_estime est-elle cohérente avec la capacite_epargne_mensuelle × 12 ?
+- Les recommandations sont-elles triées par urgence décroissante (haute d'abord) ?
 - Aucune valeur n'apparaît deux fois avec des montants différents ?
 - Le profil_investisseur est-il respecté dans TOUTES les recommandations ?
 
@@ -449,15 +511,10 @@ Retourne exactement ce JSON :
   "probabilite_succes": number (0-100),
   "situation_actuelle": string (2 phrases simples),
   "gap_analyse": string (2 phrases sur ce qui manque),
-  "plan_action": [
-    {"etape": 1, "action": string, "delai": string, "impact": string, "priorite": "haute"|"moyenne"|"faible"},
-    {"etape": 2, "action": string, "delai": string, "impact": string, "priorite": "haute"|"moyenne"|"faible"},
-    {"etape": 3, "action": string, "delai": string, "impact": string, "priorite": "haute"|"moyenne"|"faible"}
-  ],
   "recommandations": [
-    {"titre": string, "description": string (2 phrases max, simples), "urgence": "immediate"|"court_terme"|"moyen_terme", "gain_estime": number},
-    {"titre": string, "description": string, "urgence": "immediate"|"court_terme"|"moyen_terme", "gain_estime": number},
-    {"titre": string, "description": string, "urgence": "immediate"|"court_terme"|"moyen_terme", "gain_estime": number}
+    {"titre": string, "description": string (2 phrases max, simples), "urgence": "haute"|"moyenne"|"faible", "gain_estime": number},
+    {"titre": string, "description": string, "urgence": "haute"|"moyenne"|"faible", "gain_estime": number},
+    {"titre": string, "description": string, "urgence": "haute"|"moyenne"|"faible", "gain_estime": number}
   ],
   "alertes": [
     {"niveau": "critique"|"attention"|"info", "message": string (1 phrase), "action": string (1 phrase)}
@@ -588,9 +645,9 @@ const PARCOURS_LABELS: Record<string, string> = {
   succession: 'Parcours succession',
 }
 
-const urgenceBorder: Record<string, string> = { immediate: 'border-l-red-500', court_terme: 'border-l-amber-500', moyen_terme: 'border-l-[#185FA5]' }
-const urgenceLabel: Record<string, string> = { immediate: 'À faire maintenant', court_terme: 'Dans les 6 mois', moyen_terme: 'À moyen terme' }
-const urgenceBadge: Record<string, string> = { immediate: 'bg-red-50 text-red-700', court_terme: 'bg-amber-50 text-amber-700', moyen_terme: 'bg-[#E6F1FB] text-[#0C447C]' }
+const urgenceBorder: Record<string, string> = { haute: 'border-l-red-500', moyenne: 'border-l-amber-500', faible: 'border-l-[#185FA5]' }
+const urgenceLabel: Record<string, string> = { haute: 'Priorité haute', moyenne: 'Priorité moyenne', faible: 'Priorité faible' }
+const urgenceBadge: Record<string, string> = { haute: 'bg-red-50 text-red-700', moyenne: 'bg-amber-50 text-amber-700', faible: 'bg-[#E6F1FB] text-[#0C447C]' }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
@@ -602,15 +659,16 @@ export default function Analyse() {
   const [progress, setProgress] = useState(0)
   const [loadingMsg, setLoadingMsg] = useState(0)
   const [errorMsg, setErrorMsg] = useState('')
+  const [showDetails, setShowDetails] = useState(false)
   const hasCalled = useRef(false)
 
   const animPatrimoineNet = useCounter(preCalc?.patrimoineNet ?? 0)
   const animCapaciteEpargne = useCounter(preCalc?.capaciteEpargne ?? 0)
 
-  // Score ajusté : si des recommandations urgentes existent, le score ne peut pas être trop élevé
-  const nbImmediate = (result?.recommandations || []).filter(rec => rec.urgence === 'immediate').length
+  // Score ajusté : si des recommandations urgence haute existent, le score ne peut pas être trop élevé
+  const nbHaute = (result?.recommandations || []).filter(rec => rec.urgence === 'haute').length
   const scoreEffectif = result
-    ? Math.min(result.score_global, nbImmediate >= 3 ? 65 : nbImmediate >= 2 ? 72 : nbImmediate >= 1 ? 80 : 100)
+    ? Math.min(result.score_global, nbHaute >= 3 ? 65 : nbHaute >= 2 ? 72 : nbHaute >= 1 ? 80 : 100)
     : 0
   const animScoreGlobal = useCounter(scoreEffectif)
 
@@ -788,6 +846,22 @@ export default function Analyse() {
   const now = new Date()
   const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
 
+  const couvertureRetraite = c.revenusCibles > 0
+    ? Math.min(100, Math.round(c.pensionEstimee / c.revenusCibles * 100))
+    : null
+
+  const diagnosticMsg = scoreEffectif > 70
+    ? 'Votre situation patrimoniale est solide. Quelques optimisations peuvent améliorer votre rendement.'
+    : scoreEffectif >= 50
+    ? 'Votre situation est correcte mais plusieurs leviers d\'amélioration sont identifiés.'
+    : 'Des ajustements importants sont recommandés pour sécuriser votre patrimoine.'
+
+  const diagnosticColor = scoreEffectif > 70
+    ? 'bg-[#E1F5EE] border-[#0F6E56]/20 text-[#085041]'
+    : scoreEffectif >= 50
+    ? 'bg-[#E6F1FB] border-[#185FA5]/20 text-[#0C447C]'
+    : 'bg-amber-50 border-amber-200 text-amber-800'
+
   const dashModules = [
     { icon: <BarChart2 size={22} />, title: 'Bilan patrimonial', desc: 'Actifs, dettes, projection', path: '/dashboard/bilan' },
     { icon: <TrendingUp size={22} />, title: 'Simulation retraite', desc: 'Capital, revenus, scénarios', path: '/dashboard/retraite' },
@@ -806,7 +880,7 @@ export default function Analyse() {
         className="max-w-4xl mx-auto px-8 py-10 pb-24 space-y-6"
       >
 
-        {/* ── Bloc Armand — EN HAUT, bien visible ── */}
+        {/* ── Bloc Armand ── */}
         <motion.div variants={sectionItem} className="bg-white rounded-2xl border border-[#185FA5]/20 shadow-sm p-5">
           <div className="flex items-center justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -832,7 +906,7 @@ export default function Analyse() {
           </div>
         </motion.div>
 
-        {/* ── Header analyse ── */}
+        {/* ── Header ── */}
         <motion.div variants={sectionItem} className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -846,207 +920,80 @@ export default function Analyse() {
           </div>
         </motion.div>
 
-        {/* ── Métriques clés ── */}
-        <motion.div variants={sectionItem} className="grid grid-cols-3 gap-3">
-          <MetricCard
-            label="Patrimoine net"
-            value={`${fmt(animPatrimoineNet)} €`}
-            sub={c.totalDettes > 0 ? `Dettes : ${fmt(c.totalDettes)} €` : 'Sans dettes'}
-            color={c.patrimoineNet >= 0 ? 'blue' : 'red'}
-          />
-          <MetricCard
-            label="Capacité d'épargne"
-            value={`${fmt(animCapaciteEpargne)} €/mois`}
-            sub={`${fmt(c.totalRev)} revenus − ${fmt(c.totalCharges)} charges`}
-            color={c.capaciteEpargne > 500 ? 'green' : c.capaciteEpargne > 0 ? 'amber' : 'red'}
-          />
-          <MetricCard
-            label="Taux d'endettement"
-            value={`${c.tauxEndettement}%`}
-            sub={c.tauxEndettement < 33 ? 'Niveau sain' : c.tauxEndettement < 40 ? 'Limite acceptable' : 'Trop élevé'}
-            color={c.tauxEndettement < 33 ? 'green' : c.tauxEndettement < 40 ? 'amber' : 'red'}
-          />
-        </motion.div>
+        {/* ════════════════════════════════════════════════
+            NIVEAU 1 — DIAGNOSTIC RAPIDE
+        ════════════════════════════════════════════════ */}
+        <motion.div variants={sectionItem} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Votre situation en un coup d'oeil</p>
 
-        {/* ── Métriques fiscales ── */}
-        {c.tmi > 0 && (
-          <motion.div variants={sectionItem} className="grid grid-cols-3 gap-3">
-            <MetricCard
-              label="Tranche d'imposition"
-              value={`${c.tmi}%`}
-              sub={`Taux réel moyen : ${c.tauxMoyen}%`}
-              color="blue"
-            />
-            <MetricCard
-              label="Impôts annuels"
-              value={`${fmt(c.pressionFiscale)} €`}
-              sub={`Soit ${fmt(Math.round(c.pressionFiscale / 12))} € par mois`}
-              color="amber"
-            />
-            {c.economiePer > 0 && (
+          {/* Score + métriques côte à côte */}
+          <div className="flex items-center gap-6">
+            <div className="flex flex-col items-center flex-shrink-0">
+              <ScoreGauge score={animScoreGlobal} />
+              <p className={`text-[11px] font-semibold mt-1 ${scoreColor}`}>{animScoreGlobal}/100</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 flex-1">
               <MetricCard
-                label="Économie possible sur impôts"
-                value={`${fmt(c.economiePer)} €/an`}
-                sub={`Via un plan d'épargne retraite`}
-                color="green"
+                label="Patrimoine net"
+                value={`${fmt(animPatrimoineNet)} €`}
+                sub={c.totalDettes > 0 ? `Dettes : ${fmt(c.totalDettes)} €` : 'Sans dettes'}
+                color={c.patrimoineNet >= 0 ? 'blue' : 'red'}
               />
-            )}
-          </motion.div>
-        )}
-
-        {/* ── Retraite ── */}
-        {c.anneesAvantRetraite > 0 && (
-          <motion.div variants={sectionItem} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <p className="text-[13px] font-semibold text-gray-800 mb-4">Simulation retraite</p>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Départ dans</p>
-                <p className="text-[22px] font-bold text-[#185FA5]">{c.anneesAvantRetraite} ans</p>
-                <p className="text-[11px] text-gray-400">à {c.ageDepart} ans</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Déficit mensuel estimé</p>
-                <p className={`text-[22px] font-bold ${c.deficitMensuel > 0 ? 'text-amber-600' : 'text-[#0F6E56]'}`}>
-                  {c.deficitMensuel > 0 ? `${fmt(c.deficitMensuel)} €/mois` : 'Objectif atteint'}
-                </p>
-              </div>
-            </div>
-            {c.capitalNecessaire > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                <p className="text-[12px] text-amber-800">
-                  Pour combler ce déficit, vous aurez besoin de <strong>{fmt(c.capitalNecessaire)} €</strong> à la retraite.
-                  Avec votre épargne actuelle, votre capital projeté est de <strong>{fmt(c.capitalProjecte)} €</strong>.
-                </p>
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* ── Disclaimer renforcé ── */}
-        <motion.div variants={sectionItem} className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 space-y-2">
-          <p className="text-[13px] font-semibold text-amber-800">⚠️ Informations importantes sur cette analyse</p>
-          <ul className="text-[12px] text-amber-700 space-y-1.5 list-none">
-            <li>• Les projections sont basées sur des hypothèses de rendement et ne constituent pas une garantie</li>
-            <li>• Les économies fiscales estimées supposent que votre situation fiscale reste stable</li>
-            <li>• Le taux de remplacement retraite est une estimation — consultez info-retraite.fr pour une simulation personnalisée</li>
-            <li>• Cette analyse est un outil pédagogique et ne remplace pas le conseil d'un professionnel agréé (CGP, notaire, expert-comptable)</li>
-            <li>• Toutes les projections utilisent un taux de rendement hypothétique de 4 %/an</li>
-            <li>• Les projections sont exprimées en euros courants (non corrigés de l'inflation). À titre indicatif, une inflation de 2 %/an réduit le pouvoir d'achat de moitié sur 35 ans</li>
-          </ul>
-        </motion.div>
-
-        {/* ── Score + phrase bilan ── */}
-        <motion.div variants={sectionItem} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <div className="flex items-center gap-8 mb-4">
-            <ScoreGauge score={animScoreGlobal} />
-            <div>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Score global</p>
-              <p className={`text-[32px] font-bold ${scoreColor}`}>{animScoreGlobal}<span className="text-[18px] text-gray-400 font-normal">/100</span></p>
-              <p className="text-[13px] text-gray-600 mt-1 max-w-sm">{r.commentaire_global}</p>
+              <MetricCard
+                label="Capacité d'épargne"
+                value={`${fmt(animCapaciteEpargne)} €/mois`}
+                sub={`${fmt(c.totalRev)} revenus − ${fmt(c.totalCharges)} charges`}
+                color={c.capaciteEpargne > 500 ? 'green' : c.capaciteEpargne > 0 ? 'amber' : 'red'}
+              />
+              {c.tmi > 0 && (
+                <MetricCard
+                  label="Tranche d'imposition"
+                  value={`TMI ${c.tmi}%`}
+                  sub={`Taux réel moyen : ${c.tauxMoyen}%`}
+                  color="blue"
+                />
+              )}
+              {couvertureRetraite !== null && c.anneesAvantRetraite > 0 ? (
+                <MetricCard
+                  label="Couverture retraite"
+                  value={`${couvertureRetraite}%`}
+                  sub={`de l'objectif de ${fmt(c.revenusCibles)} €/mois`}
+                  color={couvertureRetraite >= 80 ? 'green' : couvertureRetraite >= 50 ? 'amber' : 'red'}
+                />
+              ) : c.tmi === 0 ? (
+                <MetricCard
+                  label="Taux d'endettement"
+                  value={`${c.tauxEndettement}%`}
+                  sub={c.tauxEndettement < 33 ? 'Niveau sain' : c.tauxEndettement < 40 ? 'Limite acceptable' : 'Trop élevé'}
+                  color={c.tauxEndettement < 33 ? 'green' : c.tauxEndettement < 40 ? 'amber' : 'red'}
+                />
+              ) : null}
             </div>
           </div>
+
+          {/* Phrase bilan IA */}
           <div className="bg-[#E6F1FB] border border-[#185FA5]/20 rounded-xl px-5 py-3">
-            <p className="text-[14px] text-[#0C447C] italic font-medium">"{r.phrase_bilan}"</p>
+            <p className="text-[13px] text-[#0C447C] italic font-medium">"{r.phrase_bilan}"</p>
+          </div>
+
+          {/* Message de diagnostic */}
+          <div className={`rounded-xl border px-4 py-3 text-[13px] font-medium ${diagnosticColor}`}>
+            {diagnosticMsg}
           </div>
         </motion.div>
 
-        {/* ── Synthèse 3 colonnes ── */}
-        <motion.div variants={sectionItem} className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F6E56] mb-2">Points forts</p>
-            {(r.points_forts || []).map((p, i) => (
-              <div key={i} className="bg-white border border-[#0F6E56]/20 rounded-xl px-4 py-3 flex gap-2">
-                <CheckCircle size={14} className="text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                <p className="text-[12px] text-gray-700">{p}</p>
-              </div>
-            ))}
-          </div>
-          <div className="space-y-2">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 mb-2">Points d'attention</p>
-            {(r.points_attention || []).map((p, i) => (
-              <div key={i} className="bg-white border border-amber-200 rounded-xl px-4 py-3 flex gap-2">
-                <AlertTriangle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                <p className="text-[12px] text-gray-700">{p}</p>
-              </div>
-            ))}
-          </div>
-          <div className="space-y-2">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#185FA5] mb-2">Ce que vous pouvez faire</p>
-            {(r.opportunites || []).map((p, i) => (
-              <div key={i} className="bg-white border border-[#185FA5]/20 rounded-xl px-4 py-3 flex gap-2">
-                <Info size={14} className="text-[#185FA5] flex-shrink-0 mt-0.5" />
-                <p className="text-[12px] text-gray-700">{p}</p>
-              </div>
-            ))}
-          </div>
+        {/* Disclaimer compact */}
+        <motion.div variants={sectionItem} className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3">
+          <p className="text-[11px] text-amber-700 leading-relaxed">
+            <strong>Outil pédagogique</strong> — projections non garanties (hypothèse 4 %/an, inflation 2 %/an). Ne remplace pas le conseil d'un CGP, notaire ou expert-comptable agréé.
+          </p>
         </motion.div>
 
-        {/* ── Objectif + plan d'action ── */}
-        <motion.div variants={sectionItem} className="bg-white rounded-2xl border-2 border-[#185FA5]/30 shadow-sm p-6 space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Votre objectif</p>
-              <p className="text-[18px] font-bold text-gray-900">{r.objectif_principal}</p>
-            </div>
-            <div className="text-center bg-gray-50 rounded-xl px-4 py-2">
-              <div className={`text-[26px] font-bold ${r.probabilite_succes >= 70 ? 'text-[#0F6E56]' : r.probabilite_succes >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
-                {r.probabilite_succes}%
-              </div>
-              <p className="text-[10px] text-gray-400">de réussite</p>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between text-[11px] text-gray-400 mb-1">
-              <span>Progression vers l'objectif</span>
-              <span>{r.probabilite_succes}%</span>
-            </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: '0%' }}
-                animate={{ width: `${r.probabilite_succes}%` }}
-                transition={{ duration: 1, ease: 'easeOut', delay: 0.4 }}
-                className={`h-full rounded-full ${r.probabilite_succes >= 70 ? 'bg-[#0F6E56]' : r.probabilite_succes >= 40 ? 'bg-amber-500' : 'bg-red-500'}`}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-[11px] font-semibold text-gray-500 uppercase mb-2">Où vous en êtes</p>
-              <p className="text-[12px] text-gray-700">{r.situation_actuelle}</p>
-            </div>
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-[11px] font-semibold text-gray-500 uppercase mb-2">Ce qu'il vous manque</p>
-              <p className="text-[12px] text-gray-700">{r.gap_analyse}</p>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[13px] font-semibold text-gray-800 mb-3">Votre plan d'action</p>
-            <div className="space-y-2">
-              {(r.plan_action || []).map(step => (
-                <div key={step.etape} className="bg-gray-50 rounded-xl px-4 py-3 flex items-start gap-4">
-                  <span className="w-6 h-6 rounded-full bg-[#185FA5] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">{step.etape}</span>
-                  <div className="flex-1">
-                    <p className="text-[13px] font-semibold text-gray-800">{step.action}</p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{step.delai}</span>
-                      <span className="text-[10px] bg-[#E1F5EE] text-[#085041] px-2 py-0.5 rounded-full">{step.impact}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${step.priorite === 'haute' ? 'bg-red-50 text-red-600' : step.priorite === 'moyenne' ? 'bg-amber-50 text-amber-700' : 'bg-[#E6F1FB] text-[#0C447C]'}`}>
-                        {step.priorite === 'haute' ? 'Priorité haute' : step.priorite === 'moyenne' ? 'Priorité moyenne' : 'Priorité faible'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* ── Recommandations ── */}
+        {/* ════════════════════════════════════════════════
+            NIVEAU 2 — 3 ACTIONS PRIORITAIRES
+        ════════════════════════════════════════════════ */}
         <motion.div variants={sectionItem}>
-          <p className="text-[16px] font-bold text-gray-900 mb-4">Recommandations</p>
+          <p className="text-[18px] font-bold text-gray-900 mb-4">Vos 3 actions prioritaires</p>
           <div className="space-y-3">
             {(r.recommandations || []).map((rec, i) => (
               <motion.div key={i}
@@ -1057,279 +1004,357 @@ export default function Analyse() {
                 whileHover={{ y: -3, boxShadow: '0 6px 20px rgba(0,0,0,0.08)' }}
                 transition={{ duration: 0.2 }}
                 className={`bg-white rounded-2xl border border-gray-100 border-l-4 shadow-sm p-5 ${urgenceBorder[rec.urgence] || 'border-l-gray-300'}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${urgenceBadge[rec.urgence] || 'bg-gray-100 text-gray-600'}`}>
-                    {urgenceLabel[rec.urgence] || rec.urgence}
-                  </span>
-                </div>
-                <p className="text-[14px] font-semibold text-gray-900 mb-1">{rec.titre}</p>
-                <p className="text-[12px] text-gray-600 leading-relaxed">{rec.description}</p>
-                {rec.gain_estime > 0 && (
-                  <div className="mt-2">
-                    <p className="text-[12px] text-[#0F6E56] font-semibold">Gain potentiel sur la durée : {fmt(rec.gain_estime)} €</p>
-                    <p className="text-[10px] text-gray-400">(projection non garantie)</p>
+                <div className="flex items-start gap-4">
+                  <span className="w-7 h-7 rounded-full bg-[#185FA5] text-white text-[12px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${urgenceBadge[rec.urgence] || 'bg-gray-100 text-gray-600'}`}>
+                        {urgenceLabel[rec.urgence] || rec.urgence}
+                      </span>
+                    </div>
+                    <p className="text-[14px] font-semibold text-gray-900 mb-1">{rec.titre}</p>
+                    <p className="text-[12px] text-gray-600 leading-relaxed">{rec.description}</p>
                   </div>
-                )}
+                  {rec.gain_estime > 0 && (
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-[15px] font-bold text-[#0F6E56]">{fmt(rec.gain_estime)} €/an</p>
+                      <p className="text-[10px] text-gray-400">économie estimée</p>
+                    </div>
+                  )}
+                </div>
               </motion.div>
             ))}
           </div>
+
+          {/* Bouton toggle Niveau 3 */}
+          <button
+            type="button"
+            onClick={() => setShowDetails(v => !v)}
+            className="mt-5 w-full py-3.5 rounded-2xl border-2 border-[#185FA5]/30 text-[13px] font-semibold text-[#185FA5] hover:bg-[#E6F1FB] transition-colors flex items-center justify-center gap-2"
+          >
+            <TrendingUp size={15} />
+            {showDetails ? 'Masquer les analyses détaillées' : 'Voir les analyses détaillées'}
+            <motion.span
+              animate={{ rotate: showDetails ? 180 : 0 }}
+              transition={{ duration: 0.25 }}
+              className="inline-block"
+            >▼</motion.span>
+          </button>
         </motion.div>
 
-        {/* ── Projection patrimoniale ── */}
-        {c.anneesAvantRetraite > 0 && c.patrimoineNet >= 0 && (() => {
-          const today = new Date().getFullYear()
-          const retraiteYear = today + c.anneesAvantRetraite
-          const ageMax = 90
-          const yearsTotal = Math.max(0, ageMax - (c.age1 || 40))
-          const endYear = today + yearsTotal
-          const epargne = c.capaciteEpargne
-          const deficit = Math.max(0, c.revenusCibles - c.pensionEstimee)
+        {/* ════════════════════════════════════════════════
+            NIVEAU 3 — DÉTAILS TECHNIQUES (accordéon)
+        ════════════════════════════════════════════════ */}
+        <AnimatePresence>
+          {showDetails && (
+            <motion.div
+              key="details"
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="space-y-6"
+            >
 
-          // Build 3-scenario + real projection
-          let cap2 = c.patrimoineNet, cap4 = c.patrimoineNet, cap6 = c.patrimoineNet
-          const data: { annee: number; pessimiste: number; median: number; optimiste: number; reel: number }[] = []
-          for (let yr = today; yr <= endYear; yr++) {
-            const elapsed = yr - today
-            if (yr < retraiteYear) {
-              cap2 = cap2 * 1.02 + epargne * 12
-              cap4 = cap4 * 1.04 + epargne * 12
-              cap6 = cap6 * 1.06 + epargne * 12
-            } else {
-              cap2 = Math.max(0, cap2 * 1.01 - deficit * 12)
-              cap4 = Math.max(0, cap4 * 1.02 - deficit * 12)
-              cap6 = Math.max(0, cap6 * 1.03 - deficit * 12)
-            }
-            data.push({
-              annee: yr,
-              pessimiste: Math.round(cap2),
-              median: Math.round(cap4),
-              optimiste: Math.round(cap6),
-              reel: Math.round(cap4 / Math.pow(1.02, elapsed)),
-            })
-          }
-
-          // Key metrics
-          const atRetraite   = data.find(d => d.annee === retraiteYear)
-          const at80year     = today + Math.max(0, 80 - (c.age1 || 40))
-          const at80         = data.find(d => d.annee === at80year)
-          const exhaustPess  = data.find(d => d.pessimiste === 0)
-          const warnExhaust  = exhaustPess && exhaustPess.annee < today + Math.max(0, 85 - (c.age1 || 40))
-
-          // Extra savings needed to prevent early exhaustion
-          const extraMensuel = warnExhaust && exhaustPess ? (() => {
-            const shortfall  = deficit * 12 * Math.max(0, endYear - exhaustPess.annee)
-            const r02m = 0.02 / 12
-            const nAcc = c.anneesAvantRetraite * 12
-            const fac  = nAcc > 0 ? (Math.pow(1 + r02m, nAcc) - 1) / r02m : 1
-            return Math.max(50, Math.round(shortfall / fac / 10) * 10)
-          })() : 0
-
-          return (
-            <motion.div variants={sectionItem} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
-              {/* Header */}
-              <div>
-                <p className="text-[15px] font-semibold text-gray-800">Projection patrimoniale</p>
-                <p className="text-[12px] text-gray-400 mt-0.5">Évolution de votre patrimoine jusqu'à 90 ans — 3 scénarios</p>
+              {/* ── Points forts / attention / opportunités ── */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F6E56] mb-2">Points forts</p>
+                  {(r.points_forts || []).map((p, i) => (
+                    <div key={i} className="bg-white border border-[#0F6E56]/20 rounded-xl px-4 py-3 flex gap-2">
+                      <CheckCircle size={14} className="text-[#0F6E56] flex-shrink-0 mt-0.5" />
+                      <p className="text-[12px] text-gray-700">{p}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 mb-2">Points d'attention</p>
+                  {(r.points_attention || []).map((p, i) => (
+                    <div key={i} className="bg-white border border-amber-200 rounded-xl px-4 py-3 flex gap-2">
+                      <AlertTriangle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-[12px] text-gray-700">{p}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#185FA5] mb-2">Ce que vous pouvez faire</p>
+                  {(r.opportunites || []).map((p, i) => (
+                    <div key={i} className="bg-white border border-[#185FA5]/20 rounded-xl px-4 py-3 flex gap-2">
+                      <Info size={14} className="text-[#185FA5] flex-shrink-0 mt-0.5" />
+                      <p className="text-[12px] text-gray-700">{p}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Chart */}
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={data} margin={{ left: 10, right: 10, top: 4 }}>
-                  <XAxis dataKey="annee" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${fmt(Math.round(v / 1000))}k`} />
-                  <Tooltip formatter={(v: number) => `${fmt(v)} €`} labelFormatter={l => `Année ${l}`} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <ReferenceLine x={retraiteYear} stroke="#185FA5" strokeDasharray="4 2"
-                    label={{ value: 'Retraite', fontSize: 10, fill: '#185FA5', position: 'top' }} />
-                  <ReferenceLine y={0} stroke="#EF4444" strokeDasharray="4 2" />
-                  <Line type="monotone" dataKey="pessimiste" stroke="#EF4444" strokeWidth={1.5} strokeDasharray="5 3" dot={false} name="Pessimiste (2%/an)" />
-                  <Line type="monotone" dataKey="median"     stroke="#185FA5" strokeWidth={2.5} dot={false} name="Médian (4%/an)" />
-                  <Line type="monotone" dataKey="optimiste"  stroke="#0F6E56" strokeWidth={1.5} strokeDasharray="5 3" dot={false} name="Optimiste (6%/an)" />
-                  <Line type="monotone" dataKey="reel"       stroke="#9CA3AF" strokeWidth={1.5} strokeDasharray="3 4" dot={false} name="Valeur réelle (inflation 2%)" />
-                </LineChart>
-              </ResponsiveContainer>
-
-              {/* 3 key metrics */}
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: 'Capital à la retraite', value: atRetraite ? `${fmt(atRetraite.median)} €` : '—', sub: 'scénario médian' },
-                  { label: 'Capital à 80 ans', value: at80 ? `${fmt(at80.median)} €` : '—', sub: 'scénario médian' },
-                  { label: exhaustPess ? `Épuisement pessimiste` : 'Capital préservé',
-                    value: exhaustPess ? `vers ${exhaustPess.annee}` : '✓ à 90 ans',
-                    sub: exhaustPess ? 'scénario à 2%/an' : 'scénario à 2%/an', warn: !!exhaustPess },
-                ].map(({ label, value, sub, warn }) => (
-                  <div key={label} className={`rounded-xl p-3 text-center ${warn ? 'bg-red-50' : 'bg-gray-50'}`}>
-                    <p className="text-[10px] text-gray-400 mb-1">{label}</p>
-                    <p className={`text-[16px] font-bold ${warn ? 'text-red-600' : 'text-gray-800'}`}>{value}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>
+              {/* ── Objectif ── */}
+              <div className="bg-white rounded-2xl border-2 border-[#185FA5]/30 shadow-sm p-6 space-y-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Votre objectif</p>
+                    <p className="text-[18px] font-bold text-gray-900">{r.objectif_principal}</p>
                   </div>
-                ))}
+                  <div className="text-center bg-gray-50 rounded-xl px-4 py-2">
+                    <div className={`text-[26px] font-bold ${r.probabilite_succes >= 70 ? 'text-[#0F6E56]' : r.probabilite_succes >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
+                      {r.probabilite_succes}%
+                    </div>
+                    <p className="text-[10px] text-gray-400">de réussite</p>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-[11px] text-gray-400 mb-1">
+                    <span>Progression vers l'objectif</span>
+                    <span>{r.probabilite_succes}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: '0%' }}
+                      animate={{ width: `${r.probabilite_succes}%` }}
+                      transition={{ duration: 1, ease: 'easeOut', delay: 0.2 }}
+                      className={`h-full rounded-full ${r.probabilite_succes >= 70 ? 'bg-[#0F6E56]' : r.probabilite_succes >= 40 ? 'bg-amber-500' : 'bg-red-500'}`}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase mb-2">Où vous en êtes</p>
+                    <p className="text-[12px] text-gray-700">{r.situation_actuelle}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase mb-2">Ce qu'il vous manque</p>
+                    <p className="text-[12px] text-gray-700">{r.gap_analyse}</p>
+                  </div>
+                </div>
               </div>
 
-              {/* Warning if exhaustion before 85 */}
-              {warnExhaust && exhaustPess && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[12px] text-amber-800">
-                  <p className="font-semibold mb-1">⚠️ Risque d'épuisement dans le scénario défavorable</p>
-                  <p>Dans un scénario de rendement faible (2 %/an), votre capital pourrait s'épuiser vers <strong>{exhaustPess.annee}</strong>. Augmenter votre épargne mensuelle de <strong>~{fmt(extraMensuel)} €</strong> pourrait couvrir l'ensemble de votre retraite.</p>
+              {/* ── Alertes ── */}
+              {(r.alertes || []).length > 0 && (
+                <div>
+                  <p className="text-[15px] font-bold text-gray-900 mb-3">Points de vigilance</p>
+                  <div className="space-y-3">
+                    {r.alertes.map((al, i) => (
+                      <div key={i} className={`rounded-2xl border px-5 py-4 flex gap-3 ${al.niveau === 'critique' ? 'bg-red-50 border-red-200' : al.niveau === 'attention' ? 'bg-amber-50 border-amber-200' : 'bg-[#E6F1FB] border-[#185FA5]/20'}`}>
+                        {al.niveau === 'critique' ? <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" /> : al.niveau === 'attention' ? <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" /> : <Info size={16} className="text-[#185FA5] flex-shrink-0 mt-0.5" />}
+                        <div>
+                          <p className="text-[13px] text-gray-800 font-medium">{al.message}</p>
+                          <p className="text-[12px] text-gray-500 mt-1">{al.action}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {/* Disclaimer */}
-              <p className="text-[11px] text-gray-400 leading-relaxed">
-                Projections basées sur des hypothèses de rendement (2 %, 4 %, 6 %/an) et une inflation de 2 %/an. Non garanties. La courbe en pointillés gris représente le pouvoir d'achat réel en euros d'aujourd'hui.
-              </p>
-            </motion.div>
-          )
-        })()}
-
-        {/* ── PER vs Assurance-vie ── */}
-        {c.tmi > 0 && c.anneesAvantRetraite > 0 && (
-          <motion.div variants={sectionItem} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[15px] font-semibold text-gray-800">PER vs Assurance-vie</p>
-                <p className="text-[12px] text-gray-400 mt-0.5">Quelle enveloppe privilégier pour votre profil ?</p>
-              </div>
-              {(() => {
-                try {
-                  const b6 = JSON.parse(localStorage.getItem('patrisim_bloc6') || '{}')
-                  const s = b6.reponses ? Object.values(b6.reponses as Record<string,number>).reduce((a:number,b:number)=>a+b,0) : 0
-                  const p = s<=10?'Défensif':s<=14?'Équilibré':s<=17?'Dynamique':'Offensif'
-                  return <span className="text-[11px] bg-[#E6F1FB] text-[#0C447C] px-2.5 py-1 rounded-full font-semibold flex-shrink-0">Profil {p}</span>
-                } catch { return null }
+              {/* ── Projection 3 scénarios ── */}
+              {c.anneesAvantRetraite > 0 && c.patrimoineNet >= 0 && (() => {
+                const today = new Date().getFullYear()
+                const retraiteYear = today + c.anneesAvantRetraite
+                const yearsTotal = Math.max(0, 90 - (c.age1 || 40))
+                const endYear = today + yearsTotal
+                const epargne = c.capaciteEpargne
+                const deficit = Math.max(0, c.revenusCibles - c.pensionEstimee)
+                let cap2 = c.patrimoineNet, cap4 = c.patrimoineNet, cap6 = c.patrimoineNet
+                const projData: { annee: number; pessimiste: number; median: number; optimiste: number; reel: number }[] = []
+                for (let yr = today; yr <= endYear; yr++) {
+                  const elapsed = yr - today
+                  if (yr < retraiteYear) {
+                    cap2 = cap2 * 1.02 + epargne * 12
+                    cap4 = cap4 * 1.04 + epargne * 12
+                    cap6 = cap6 * 1.06 + epargne * 12
+                  } else {
+                    cap2 = Math.max(0, cap2 * 1.01 - deficit * 12)
+                    cap4 = Math.max(0, cap4 * 1.02 - deficit * 12)
+                    cap6 = Math.max(0, cap6 * 1.03 - deficit * 12)
+                  }
+                  projData.push({ annee: yr, pessimiste: Math.round(cap2), median: Math.round(cap4), optimiste: Math.round(cap6), reel: Math.round(cap4 / Math.pow(1.02, elapsed)) })
+                }
+                const atRetraite  = projData.find(d => d.annee === retraiteYear)
+                const at80year    = today + Math.max(0, 80 - (c.age1 || 40))
+                const at80        = projData.find(d => d.annee === at80year)
+                const renteEquivalente = atRetraite ? Math.round(atRetraite.median * 0.03 / 12) : 0
+                const exhaustPess = projData.find(d => d.pessimiste === 0)
+                const warnExhaust = exhaustPess && exhaustPess.annee < today + Math.max(0, 85 - (c.age1 || 40))
+                const extraMensuel = warnExhaust && exhaustPess ? (() => {
+                  const shortfall = deficit * 12 * Math.max(0, endYear - exhaustPess.annee)
+                  const r02m = 0.02 / 12; const nAcc = c.anneesAvantRetraite * 12
+                  const fac = nAcc > 0 ? (Math.pow(1 + r02m, nAcc) - 1) / r02m : 1
+                  return Math.max(50, Math.round(shortfall / fac / 10) * 10)
+                })() : 0
+                return (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+                    <div>
+                      <p className="text-[15px] font-semibold text-gray-800">Projection patrimoniale</p>
+                      <p className="text-[12px] text-gray-400 mt-0.5">Évolution de votre patrimoine jusqu'à 90 ans — 3 scénarios</p>
+                    </div>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={projData} margin={{ left: 10, right: 10, top: 4 }}>
+                        <XAxis dataKey="annee" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${fmt(Math.round(v / 1000))}k`} />
+                        <Tooltip formatter={(v: number) => `${fmt(v)} €`} labelFormatter={l => `Année ${l}`} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        <ReferenceLine x={retraiteYear} stroke="#185FA5" strokeDasharray="4 2"
+                          label={{ value: 'Retraite', fontSize: 10, fill: '#185FA5', position: 'top' }} />
+                        <ReferenceLine y={0} stroke="#EF4444" strokeDasharray="4 2" />
+                        <Line type="monotone" dataKey="pessimiste" stroke="#EF4444" strokeWidth={1.5} strokeDasharray="5 3" dot={false} name="Pessimiste (2%/an)" />
+                        <Line type="monotone" dataKey="median"     stroke="#185FA5" strokeWidth={2.5} dot={false} name="Médian (4%/an)" />
+                        <Line type="monotone" dataKey="optimiste"  stroke="#0F6E56" strokeWidth={1.5} strokeDasharray="5 3" dot={false} name="Optimiste (6%/an)" />
+                        <Line type="monotone" dataKey="reel"       stroke="#9CA3AF" strokeWidth={1.5} strokeDasharray="3 4" dot={false} name="Valeur réelle (inflation 2%)" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { label: 'Capital à la retraite', value: atRetraite ? `${fmt(atRetraite.median)} €` : '—', sub: renteEquivalente > 0 ? `≈ ${fmt(renteEquivalente)} €/mois en rente` : 'scénario médian' },
+                        { label: 'Capital à 80 ans', value: at80 ? `${fmt(at80.median)} €` : '—', sub: 'scénario médian' },
+                        { label: exhaustPess ? 'Épuisement pessimiste' : 'Capital préservé', value: exhaustPess ? `vers ${exhaustPess.annee}` : '✓ à 90 ans', sub: 'scénario à 2%/an', warn: !!exhaustPess },
+                      ].map(({ label, value, sub, warn }) => (
+                        <div key={label} className={`rounded-xl p-3 text-center ${warn ? 'bg-red-50' : 'bg-gray-50'}`}>
+                          <p className="text-[10px] text-gray-400 mb-1">{label}</p>
+                          <p className={`text-[16px] font-bold ${warn ? 'text-red-600' : 'text-gray-800'}`}>{value}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {renteEquivalente > 0 && (
+                      <p className="text-[11px] text-gray-400 leading-relaxed border-t border-gray-100 pt-3">
+                        La rente estimée (hypothèse 3 %/an) est indicative. Le capital projeté ne garantit pas ce revenu : la conversion dépend des conditions de marché au moment du départ en retraite.
+                      </p>
+                    )}
+                    {warnExhaust && exhaustPess && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[12px] text-amber-800">
+                        <p className="font-semibold mb-1">⚠️ Risque d'épuisement dans le scénario défavorable</p>
+                        <p>Dans un scénario à 2 %/an, votre capital pourrait s'épuiser vers <strong>{exhaustPess.annee}</strong>. Augmenter votre épargne de <strong>~{fmt(extraMensuel)} €/mois</strong> pourrait couvrir l'ensemble de votre retraite.</p>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      Projections sur hypothèses (2 %, 4 %, 6 %/an) et inflation 2 %/an. Non garanties. Courbe grise = pouvoir d'achat réel.
+                    </p>
+                  </div>
+                )
               })()}
-            </div>
 
-            {/* Hypothèse */}
-            <div className="bg-gray-50 rounded-xl px-4 py-2.5 flex flex-wrap gap-4 text-[11px] text-gray-500">
-              <span>Versement hypothèse : <strong className="text-gray-700">{fmt(c.versHypoMensuel)} €/mois</strong> (30% capacité d'épargne)</span>
-              <span>Durée : <strong className="text-gray-700">{c.anneesAvantRetraite} ans</strong></span>
-              <span>Rendement : <strong className="text-gray-700">4 %/an</strong></span>
-            </div>
-
-            {/* Tableau comparatif */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-[12px]">
-                <thead>
-                  <tr>
-                    <th className="text-left text-[11px] text-gray-400 font-medium pb-2 w-44"></th>
-                    <th className={`text-center pb-2 rounded-t-xl px-3 ${c.perVsAvRecommande === 'per' ? 'bg-[#E6F1FB] text-[#0C447C]' : 'text-gray-600'}`}>
-                      <span className="font-bold">PER</span>
-                      {c.perVsAvRecommande === 'per' && <span className="ml-1.5 text-[9px] bg-[#185FA5] text-white px-1.5 py-0.5 rounded-full">✓ Recommandé</span>}
-                    </th>
-                    <th className={`text-center pb-2 rounded-t-xl px-3 ${c.perVsAvRecommande === 'av' ? 'bg-[#E1F5EE] text-[#085041]' : 'text-gray-600'}`}>
-                      <span className="font-bold">Assurance-vie</span>
-                      {c.perVsAvRecommande === 'av' && <span className="ml-1.5 text-[9px] bg-[#0F6E56] text-white px-1.5 py-0.5 rounded-full">✓ Recommandée</span>}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {[
-                    { label: 'Capital final projeté', per: `${fmt(c.capitalPERFinal)} €`, av: `${fmt(c.capitalAVFinal)} €` },
-                    { label: 'Économie fiscale entrée', per: `+${fmt(c.economieFiscPER)} €`, av: '0 €', perColor: 'text-[#0F6E56]' },
-                    { label: 'Impôt à la sortie', per: `−${fmt(c.impotSortiePER)} €`, av: `−${fmt(c.impotSortieAV)} €`, perColor: 'text-red-600', avColor: 'text-red-600' },
-                    { label: 'Net après impôt', per: `${fmt(c.netPER)} €`, av: `${fmt(c.netAV)} €`, bold: true,
-                      perColor: c.netPER >= c.netAV ? 'text-[#185FA5] font-bold' : 'text-gray-700',
-                      avColor: c.netAV >= c.netPER ? 'text-[#0F6E56] font-bold' : 'text-gray-700' },
-                  ].map(row => (
-                    <tr key={row.label}>
-                      <td className="py-2 text-gray-500">{row.label}</td>
-                      <td className={`py-2 text-center ${row.perColor || 'text-gray-700'} ${c.perVsAvRecommande === 'per' ? 'bg-[#E6F1FB]/40' : ''} px-3`}>{row.per}</td>
-                      <td className={`py-2 text-center ${row.avColor || 'text-gray-700'} ${c.perVsAvRecommande === 'av' ? 'bg-[#E1F5EE]/40' : ''} px-3`}>{row.av}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Recommandation */}
-            <div className={`rounded-xl px-4 py-3 text-[12px] ${c.perVsAvRecommande === 'per' ? 'bg-[#E6F1FB] text-[#0C447C]' : c.perVsAvRecommande === 'av' ? 'bg-[#E1F5EE] text-[#085041]' : 'bg-amber-50 text-amber-800'}`}>
-              <p className="font-semibold mb-1">
-                {c.perVsAvRecommande === 'per' ? '✓ PER recommandé pour votre situation'
-                  : c.perVsAvRecommande === 'av' ? '✓ Assurance-vie recommandée pour votre situation'
-                  : '⚖️ Diversifier entre PER et assurance-vie'}
-              </p>
-              <p>
-                {c.perVsAvRecommande === 'per'
-                  ? `Votre TMI actuelle (${c.tmi}%) est supérieure à votre TMI estimée à la retraite (${c.tmiRetraite}%). Le PER est plus avantageux fiscalement : vous déduisez à ${c.tmi}% et sortez à ${c.tmiRetraite}%.`
-                  : c.perVsAvRecommande === 'av'
-                  ? `Votre TMI actuelle (${c.tmi}%) est faible. L'assurance-vie offre plus de flexibilité et une fiscalité douce après 8 ans (7,5 % sur les gains au-delà de l'abattement annuel).`
-                  : `Votre TMI actuelle (${c.tmi}%) est proche de votre TMI estimée à la retraite (${c.tmiRetraite}%). Diversifier entre PER (déduction fiscale) et assurance-vie (flexibilité) peut être optimal.`}
-              </p>
-            </div>
-
-            {/* Disclaimer */}
-            <p className="text-[11px] text-gray-400 leading-relaxed">
-              Simulation basée sur une hypothèse de rendement de 4 %/an et votre TMI estimée. Les données fiscales (abattements, tranches) correspondent au barème 2025. Consultez un conseiller en gestion de patrimoine pour une analyse personnalisée.
-            </p>
-          </motion.div>
-        )}
-
-        {/* ── Alertes ── */}
-        {(r.alertes || []).length > 0 && (
-          <motion.div variants={sectionItem}>
-            <p className="text-[16px] font-bold text-gray-900 mb-4">Points de vigilance</p>
-            <div className="space-y-3">
-              {r.alertes.map((al, i) => (
-                <div key={i} className={`rounded-2xl border px-5 py-4 flex gap-3 ${al.niveau === 'critique' ? 'bg-red-50 border-red-200' : al.niveau === 'attention' ? 'bg-amber-50 border-amber-200' : 'bg-[#E6F1FB] border-[#185FA5]/20'}`}>
-                  {al.niveau === 'critique' ? <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" /> : al.niveau === 'attention' ? <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" /> : <Info size={16} className="text-[#185FA5] flex-shrink-0 mt-0.5" />}
-                  <div>
-                    <p className="text-[13px] text-gray-800 font-medium">{al.message}</p>
-                    <p className="text-[12px] text-gray-500 mt-1">{al.action}</p>
+              {/* ── PER vs Assurance-vie ── */}
+              {c.tmi > 0 && c.anneesAvantRetraite > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[15px] font-semibold text-gray-800">PER vs Assurance-vie</p>
+                      <p className="text-[12px] text-gray-400 mt-0.5">Quelle enveloppe privilégier pour votre profil ?</p>
+                    </div>
+                    {(() => {
+                      try {
+                        const b6 = JSON.parse(localStorage.getItem('patrisim_bloc6') || '{}')
+                        const s = b6.reponses ? Object.values(b6.reponses as Record<string,number>).reduce((a:number,b:number)=>a+b,0) : 0
+                        const p = s<=10?'Défensif':s<=14?'Équilibré':s<=17?'Dynamique':'Offensif'
+                        return <span className="text-[11px] bg-[#E6F1FB] text-[#0C447C] px-2.5 py-1 rounded-full font-semibold flex-shrink-0">Profil {p}</span>
+                      } catch { return null }
+                    })()}
                   </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── Allocation d'actifs ── */}
-        {c.patrimoineBrut > 0 && (
-          <motion.div variants={sectionItem} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-[#E6F1FB] flex items-center justify-center">
-                <PieChart size={16} className="text-[#185FA5]" />
-              </div>
-              <p className="text-[15px] font-semibold text-gray-800">Allocation d'actifs</p>
-              <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">À valider avec un conseiller</span>
-            </div>
-
-            <p className="text-[13px] text-gray-500 leading-relaxed">
-              La répartition de votre patrimoine entre les différentes classes d'actifs est un élément central de votre stratégie. Elle doit être alignée avec votre profil de risque{(() => { try { const b6 = JSON.parse(localStorage.getItem('patrisim_bloc6') || '{}'); const s = b6.reponses ? Object.values(b6.reponses as Record<string,number>).reduce((a:number,b:number) => a+b, 0) : 0; const p = s <= 10 ? 'Défensif' : s <= 14 ? 'Équilibré' : s <= 17 ? 'Dynamique' : 'Offensif'; return ` (${p})`; } catch { return '' } })()} et votre horizon d'investissement.
-            </p>
-
-            <div className="space-y-2.5">
-              {[
-                { label: 'Immobilier', pct: c.pctImmo, color: 'bg-[#185FA5]' },
-                { label: 'Financier', pct: c.pctFinancier, color: 'bg-[#0F6E56]' },
-                { label: 'Liquidités', pct: c.pctLiquidites, color: 'bg-amber-400' },
-                { label: 'Autres actifs', pct: c.pctAutres, color: 'bg-gray-400' },
-              ].map(({ label, pct, color }) => (
-                <div key={label} className="flex items-center gap-3">
-                  <span className="text-[12px] text-gray-500 w-24 flex-shrink-0">{label}</span>
-                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${Math.max(pct, 0)}%` }} />
+                  <div className="bg-gray-50 rounded-xl px-4 py-2.5 flex flex-wrap gap-4 text-[11px] text-gray-500">
+                    <span>Versement hypothèse : <strong className="text-gray-700">{fmt(c.versHypoMensuel)} €/mois</strong> (30% capacité d'épargne)</span>
+                    <span>Durée : <strong className="text-gray-700">{c.anneesAvantRetraite} ans</strong></span>
+                    <span>Rendement : <strong className="text-gray-700">4 %/an</strong></span>
                   </div>
-                  <span className="text-[12px] font-semibold text-gray-700 w-8 text-right">{Math.max(pct, 0)}%</span>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[12px]">
+                      <thead>
+                        <tr>
+                          <th className="text-left text-[11px] text-gray-400 font-medium pb-2 w-44"></th>
+                          <th className={`text-center pb-2 rounded-t-xl px-3 ${c.perVsAvRecommande === 'per' ? 'bg-[#E6F1FB] text-[#0C447C]' : 'text-gray-600'}`}>
+                            <span className="font-bold">PER</span>
+                            {c.perVsAvRecommande === 'per' && <span className="ml-1.5 text-[9px] bg-[#185FA5] text-white px-1.5 py-0.5 rounded-full">✓ Recommandé</span>}
+                          </th>
+                          <th className={`text-center pb-2 rounded-t-xl px-3 ${c.perVsAvRecommande === 'av' ? 'bg-[#E1F5EE] text-[#085041]' : 'text-gray-600'}`}>
+                            <span className="font-bold">Assurance-vie</span>
+                            {c.perVsAvRecommande === 'av' && <span className="ml-1.5 text-[9px] bg-[#0F6E56] text-white px-1.5 py-0.5 rounded-full">✓ Recommandée</span>}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {[
+                          { label: 'Capital final projeté', per: `${fmt(c.capitalPERFinal)} €`, av: `${fmt(c.capitalAVFinal)} €` },
+                          { label: 'Économie fiscale entrée', per: `+${fmt(c.economieFiscPER)} €`, av: '0 €', perColor: 'text-[#0F6E56]' },
+                          { label: 'Impôt à la sortie', per: `−${fmt(c.impotSortiePER)} €`, av: `−${fmt(c.impotSortieAV)} €`, perColor: 'text-red-600', avColor: 'text-red-600' },
+                          { label: 'Net après impôt', per: `${fmt(c.netPER)} €`, av: `${fmt(c.netAV)} €`,
+                            perColor: c.netPER >= c.netAV ? 'text-[#185FA5] font-bold' : 'text-gray-700',
+                            avColor: c.netAV >= c.netPER ? 'text-[#0F6E56] font-bold' : 'text-gray-700' },
+                        ].map(row => (
+                          <tr key={row.label}>
+                            <td className="py-2 text-gray-500">{row.label}</td>
+                            <td className={`py-2 text-center ${row.perColor || 'text-gray-700'} ${c.perVsAvRecommande === 'per' ? 'bg-[#E6F1FB]/40' : ''} px-3`}>{row.per}</td>
+                            <td className={`py-2 text-center ${row.avColor || 'text-gray-700'} ${c.perVsAvRecommande === 'av' ? 'bg-[#E1F5EE]/40' : ''} px-3`}>{row.av}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className={`rounded-xl px-4 py-3 text-[12px] ${c.perVsAvRecommande === 'per' ? 'bg-[#E6F1FB] text-[#0C447C]' : c.perVsAvRecommande === 'av' ? 'bg-[#E1F5EE] text-[#085041]' : 'bg-amber-50 text-amber-800'}`}>
+                    <p className="font-semibold mb-1">
+                      {c.perVsAvRecommande === 'per' ? '✓ PER recommandé pour votre situation'
+                        : c.perVsAvRecommande === 'av' ? '✓ Assurance-vie recommandée pour votre situation'
+                        : '⚖️ Diversifier entre PER et assurance-vie'}
+                    </p>
+                    <p>
+                      {c.perVsAvRecommande === 'per'
+                        ? `Votre TMI actuelle (${c.tmi}%) est supérieure à votre TMI estimée à la retraite (${c.tmiRetraite}%). Le PER est plus avantageux fiscalement : vous déduisez à ${c.tmi}% et sortez à ${c.tmiRetraite}%.`
+                        : c.perVsAvRecommande === 'av'
+                        ? `Votre TMI actuelle (${c.tmi}%) est faible. L'assurance-vie offre plus de flexibilité et une fiscalité douce après 8 ans.`
+                        : `Votre TMI actuelle (${c.tmi}%) est proche de votre TMI estimée à la retraite (${c.tmiRetraite}%). Diversifier entre PER et assurance-vie peut être optimal.`}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    Simulation basée sur une hypothèse de rendement de 4 %/an et le barème fiscal 2025. Consultez un conseiller agréé pour une analyse personnalisée.
+                  </p>
                 </div>
-              ))}
-            </div>
+              )}
 
-            {c.pctImmo > 70 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[12px] text-amber-800">
-                <p className="font-semibold mb-1">⚠️ Concentration immobilière ({c.pctImmo}%)</p>
-                <p>Votre patrimoine est fortement concentré sur l'immobilier. Un conseiller en gestion de patrimoine agréé peut vous aider à évaluer l'opportunité de diversifier.</p>
-              </div>
-            )}
-            {c.pctImmo <= 70 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[12px] text-amber-800">
-                <p className="font-semibold mb-1">⚠️ Point important à aborder avec un conseiller</p>
-                <p>L'allocation d'actifs optimale dépend de votre situation fiscale, de vos objectifs et de votre tolérance au risque. Un conseiller en gestion de patrimoine agréé peut vous aider à définir la répartition adaptée à votre profil.</p>
-              </div>
-            )}
-          </motion.div>
-        )}
+              {/* ── Allocation d'actifs ── */}
+              {c.patrimoineBrut > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-[#E6F1FB] flex items-center justify-center">
+                      <PieChart size={16} className="text-[#185FA5]" />
+                    </div>
+                    <p className="text-[15px] font-semibold text-gray-800">Allocation d'actifs</p>
+                    <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">À valider avec un conseiller</span>
+                  </div>
+                  <p className="text-[13px] text-gray-500 leading-relaxed">
+                    La répartition de votre patrimoine entre les différentes classes d'actifs doit être alignée avec votre profil de risque{(() => { try { const b6 = JSON.parse(localStorage.getItem('patrisim_bloc6') || '{}'); const s = b6.reponses ? Object.values(b6.reponses as Record<string,number>).reduce((a:number,b:number) => a+b, 0) : 0; const p = s <= 10 ? 'Défensif' : s <= 14 ? 'Équilibré' : s <= 17 ? 'Dynamique' : 'Offensif'; return ` (${p})`; } catch { return '' } })()} et votre horizon d'investissement.
+                  </p>
+                  <div className="space-y-2.5">
+                    {[
+                      { label: 'Immobilier', pct: c.pctImmo, color: 'bg-[#185FA5]' },
+                      { label: 'Financier', pct: c.pctFinancier, color: 'bg-[#0F6E56]' },
+                      { label: 'Liquidités', pct: c.pctLiquidites, color: 'bg-amber-400' },
+                      { label: 'Autres actifs', pct: c.pctAutres, color: 'bg-gray-400' },
+                    ].map(({ label, pct, color }) => (
+                      <div key={label} className="flex items-center gap-3">
+                        <span className="text-[12px] text-gray-500 w-24 flex-shrink-0">{label}</span>
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${Math.max(pct, 0)}%` }} />
+                        </div>
+                        <span className="text-[12px] font-semibold text-gray-700 w-8 text-right">{Math.max(pct, 0)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                  {c.pctImmo > 70 ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[12px] text-amber-800">
+                      <p className="font-semibold mb-1">⚠️ Concentration immobilière ({c.pctImmo}%)</p>
+                      <p>Votre patrimoine est fortement concentré sur l'immobilier. Un conseiller agréé peut vous aider à évaluer l'opportunité de diversifier.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[12px] text-amber-800">
+                      <p className="font-semibold mb-1">⚠️ Point important à aborder avec un conseiller</p>
+                      <p>L'allocation optimale dépend de votre situation fiscale, de vos objectifs et de votre tolérance au risque. Un conseiller agréé peut définir la répartition adaptée à votre profil.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Accès simulateurs ── */}
         <motion.div variants={sectionItem} className="space-y-4">
@@ -1337,7 +1362,6 @@ export default function Analyse() {
             className="w-full py-4 rounded-2xl bg-[#185FA5] text-white text-[14px] font-semibold hover:bg-[#0C447C] transition-colors shadow-[0_4px_14px_rgba(24,95,165,0.25)] flex items-center justify-center gap-2">
             Accéder aux simulateurs détaillés →
           </button>
-
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             {dashModules.map((m, i) => (
               <div key={i} className={`flex items-center gap-3 px-4 py-3 ${i < dashModules.length - 1 ? 'border-b border-gray-50' : ''}`}>
